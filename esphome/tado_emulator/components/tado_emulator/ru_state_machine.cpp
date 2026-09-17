@@ -30,6 +30,7 @@ void RUStateMachine::trigger_telemetry(float temp_c, float hum_pct, uint16_t bat
   config_.target_humidity_pct = hum_pct;
   config_.target_battery_mv = battery_mv;
   config_.last_telemetry_ts = now_s;
+  config_.last_external_telemetry_ts = now_s;
 
   ESP_LOGI(TAG, "[%s] Trigger telemetry: temp=%.2fC hum=%.1f%% bat=%dmV",
            config_.serial_no.c_str(), temp_c, hum_pct, battery_mv);
@@ -148,12 +149,18 @@ void RUStateMachine::tick(uint32_t now_ms, uint32_t now_s, std::vector<OutboundF
   // 1. Operational State: Autonomous heartbeats & Hourly maintenance burst
   if (config_.state == STATE_OPERATIONAL) {
     // Autonomous zone measurement heartbeat (~600s / 10m for measuring leader)
-    if (config_.is_measuring_leader) {
+    // Suppressed when external telemetry feed is actively driving the device (within 1800s / 30m)
+    bool external_active = (config_.last_external_telemetry_ts > 0 &&
+                           (now_s >= config_.last_external_telemetry_ts) &&
+                           (now_s - config_.last_external_telemetry_ts < 1800));
+
+    if (config_.is_measuring_leader && !external_active) {
       if (config_.last_zp_tx_ts == 0) {
         config_.last_zp_tx_ts = now_s;
       } else if (now_s > config_.last_zp_tx_ts && (now_s - config_.last_zp_tx_ts >= 600)) {
         config_.last_zp_tx_ts = now_s;
         config_.last_telemetry_ts = now_s;
+        config_.last_reported_temp = config_.target_temp_celsius;
         std::vector<uint8_t> z_tlv = protocol::build_z_p_tlv(config_.target_temp_celsius, config_.target_humidity_pct);
         OutboundFrame z_frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_PUT, "z/p",
                                                           z_tlv.data(), z_tlv.size(), config_.ib_mac);
@@ -943,18 +950,11 @@ void RUStateMachine::handle_coap_message(const ParsedCoAP &coap, const ParsedMac
 
   // Case 11: Inbound PUT /z/s (Zone Setpoint Update)
   if (coap.code == COAP_CODE_PUT && (coap.uri_path == "z/s" || coap.uri_path.rfind("z/s", 0) == 0)) {
-    auto tlvs = protocol::parse_tlvs(coap.payload.data(), coap.payload.size());
-    for (const auto &t : tlvs) {
-      if (t.tag == TLV_ZONE_TARGET_TEMP_6200 && t.value.size() >= 2) {
-        uint16_t raw_temp = (t.value[0] << 8) | t.value[1];
-        config_.setpoint_temp_celsius = raw_temp / 100.0f;
-      } else if (t.tag == TLV_ZONE_MODE_6160 && !t.value.empty()) {
-        config_.zone_mode = t.value[0];
-      }
-    }
-    emit_coap_ack_response(COAP_CODE_CHANGED, coap, mac, rx_key, nullptr, 0, outbound_frames);
-    ESP_LOGI(TAG, "[%s] Updated setpoint from PUT /z/s: setpoint_temp=%.2fC, mode=%u, replied 2.04 Changed",
-             config_.serial_no.c_str(), config_.setpoint_temp_celsius, config_.zone_mode);
+    // Pure wireless sensor has no actuator/relay to control zone setpoint:
+    // Reject PUT /z/s with 4.02 Bad Option (matching genuine RU firmware)
+    emit_coap_ack_response(COAP_CODE_BAD_OPTION, coap, mac, rx_key, nullptr, 0, outbound_frames);
+    ESP_LOGI(TAG, "[%s] Rejected PUT /z/s with 4.02 Bad Option (wireless sensor mode)",
+             config_.serial_no.c_str());
     return;
   }
 

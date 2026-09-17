@@ -41,7 +41,8 @@ enum CoAPCode : uint8_t {
   COAP_CODE_DELETED = 0x42, // 2.02
   COAP_CODE_VALID = 0x43,   // 2.03
   COAP_CODE_CHANGED = 0x44, // 2.04
-  COAP_CODE_CONTENT = 0x45  // 2.05
+  COAP_CODE_CONTENT = 0x45, // 2.05
+  COAP_CODE_BAD_OPTION = 0x82 // 4.02 Bad Option (RFC 7252)
 };
 
 enum CoAPOptionNum : uint16_t {

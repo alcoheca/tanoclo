@@ -135,6 +135,7 @@ struct EmulatedDeviceConfig {
   uint16_t coap_mid{0x4000};
   uint32_t frame_counter{1};
   uint32_t last_telemetry_ts{0};
+  uint32_t last_external_telemetry_ts{0};
   uint32_t last_link_probe_ts{0};
   uint32_t last_pair_tx_time_{0};
   uint32_t last_csl_poll_time_{0};

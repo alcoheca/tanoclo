@@ -928,12 +928,14 @@ std::vector<uint8_t> build_coap_ack(uint16_t mid, uint8_t code, const uint8_t *t
   coap.push_back(mid & 0xFF);
   for (size_t i = 0; i < tkl; i++) coap.push_back(token[i]);
 
-  if (payload && payload_len > 0) {
+  if ((payload && payload_len > 0) || code == COAP_CODE_BAD_OPTION) {
     // Option 12: Content-Format 42 (0xC1, 0x2A)
     coap.push_back(0xC1);
     coap.push_back(0x2A);
-    coap.push_back(0xFF);
-    coap.insert(coap.end(), payload, payload + payload_len);
+    if (payload && payload_len > 0) {
+      coap.push_back(0xFF);
+      coap.insert(coap.end(), payload, payload + payload_len);
+    }
   }
   return coap;
 }
