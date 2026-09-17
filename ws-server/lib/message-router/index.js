@@ -62,6 +62,10 @@ let _cleanupBlockSessionsTimer;
 let _cleanupBlockReassemblyTimer;
 let _refreshIpv6ToDeviceTimer;
 
+/**
+ * Allocate the next CoAP Message ID (MID) for server-initiated downlink requests.
+ * 
+ */
 function nextMid() {
     const mid = 0x7000 + (serverMid % 0x9000);
     serverMid = (serverMid + 1) % 0x9000;
@@ -691,8 +695,12 @@ async function handleMessage(ws, message, isBinary, isDownlink = false) {
                 case 'device_fallback':
                     await handlers.handleDeviceFallback(ws, frame, coapMsg, decoded, peerInfo, pathInfo);
                     break;
+                case 'zone_open_window':
                 case 'open_window':
                     await handlers.handleZoneOpenWindow(ws, frame, coapMsg, decoded, peerInfo, pathInfo);
+                    break;
+                case 'zone_params':
+                    await handlers.handleZoneParams(ws, frame, coapMsg, decoded, peerInfo, pathInfo);
                     break;
                 case 'zone_config':
                     await handlers.handleZoneConfig(ws, frame, coapMsg, decoded, peerInfo, pathInfo);
