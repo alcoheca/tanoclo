@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-15
+
+- fix: prevent logout on language change
+- fix: caching issues with workflows
+
 ## [0.3.1] - 2026-09-12
 
 - feat: Improve translations
