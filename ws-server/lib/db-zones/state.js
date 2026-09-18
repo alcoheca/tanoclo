@@ -19,7 +19,11 @@ const ALLOWED_ZONE_DEVICE_CONFIG_COLS = new Set(['last_config_json', 'field_0140
 const ALLOWED_CIRCUIT_STATE_COLS = new Set(['field_4040', 'field_4000', 'field_4080', 'field_2090']);
 const ALLOWED_HEATING_SYSTEM_COLS = new Set([
     'home_id', 'hvac_updated_at', 'last_config_json', 'hvac_etag',
-    'field_0460', 'field_0461', 'field_0462', 'field_0463', 'field_0466', 'field_0467', 'field_0468', 'field_0464', 'field_0465', 'field_0481'
+    'field_044c', 'field_044d', 'field_0450', 'field_0458', 'field_0457', 'field_0452',
+    'field_0460', 'field_0461', 'field_0462', 'field_0463', 'field_0464', 'field_0465',
+    'field_0466', 'field_0467', 'field_0468', 'field_046c', 'field_046d', 'field_046f',
+    'field_0471', 'field_0481', 'field_045b', 'field_015d',
+    'boiler_present', 'boiler_id', 'boiler_found', 'underfloor_heating_present', 'boiler_capacity_kw'
 ]);
 
 // ==========================================

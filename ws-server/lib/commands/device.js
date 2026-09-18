@@ -536,7 +536,7 @@ async function handleRfKeyRefresh(req, res, deviceId) {
     const bridge = api.findBridgeForHome(dbDev.home_id);
     if (!bridge) return api.jsonResponse(res, 503, { error: `No bridge connected for home ${dbDev.home_id}` });
 
-    const mid = (Math.random() * 0xFFFF) | 0;
+    const mid = getNextMid();
     const token = crypto.randomBytes(8);
 
     const extraOptions = [

@@ -8,6 +8,7 @@
 const coap = require('../coap');
 const tlv = require('../tlv');
 const crypto = require('crypto');
+const { getNextMid } = require('../coap-transport');
 const api = require('../command-api');
 
 const OFFLINE_SCHEDULE_COAP_PATH = 'd/config';
@@ -131,7 +132,7 @@ async function pushOfflineScheduleEnable(homeId, zoneId, enabled) {
 
         api._log('info', `[cmd-api] Offline schedule ${enabled ? 'ENABLE' : 'DISABLE'} push to ${dev.serial_no} Z:${zoneId}`);
 
-        const mid = (Math.random() * 0xFFFF) | 0;
+        const mid = getNextMid();
         const token = crypto.randomBytes(4);
 
         const extraOptions = [
@@ -223,7 +224,7 @@ async function pushOfflineScheduleSync(homeId, zoneId) {
 
         api._log('info', `[cmd-api] Pushing daily schedule sync blocks to ${dev.serial_no} Z:${zoneId}`);
 
-        const mid = (Math.random() * 0xFFFF) | 0;
+        const mid = getNextMid();
         const token = crypto.randomBytes(4);
 
         const extraOptions = [

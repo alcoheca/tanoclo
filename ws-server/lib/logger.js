@@ -75,12 +75,23 @@ function flushLogs() {
     });
 }
 
+function flushLogsSync() {
+    if (logBuffer.length === 0) return;
+    const data = logBuffer.join('\n') + '\n';
+    logBuffer = [];
+    try {
+        fs.appendFileSync(logFile, data);
+    } catch (err) {
+        console.error(`[LOGGER] Write error: ${err.message}`);
+    }
+}
+
 // Ensure logs are flushed periodically
 setInterval(flushLogs, FLUSH_INTERVAL_MS).unref();
 
-// Ensure logs are flushed on exit
-process.on('exit', flushLogs);
-process.on('SIGINT', () => { flushLogs(); });
+// Ensure logs are flushed synchronously on exit to prevent dropping buffered lines
+process.on('exit', flushLogsSync);
+process.on('SIGINT', () => { flushLogsSync(); });
 
 function maskSerials(str, level) {
     if (level === 'debug') return str;

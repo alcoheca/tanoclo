@@ -8,6 +8,7 @@
 const coap = require('../coap');
 const tlv = require('../tlv');
 const crypto = require('crypto');
+const { getNextMid } = require('../coap-transport');
 const api = require('../command-api');
 
 async function handleZoneOverlay(req, res, homeId, zoneId) {
@@ -160,7 +161,7 @@ async function pushZoneOverlay(homeId, zoneId, setting, termination) {
 
             api._log('info', `[cmd-api] Sending z/s to ${dev.serial_no} (${dev.ipv6_address}) via bridge ${bridge.bridgeId}`);
 
-            const mid = (Math.random() * 0xFFFF) | 0;
+            const mid = getNextMid();
             const token = crypto.randomBytes(6);
 
             const extraOptions = [
@@ -276,7 +277,7 @@ async function pushZoneOverlayDelete(homeId, zoneId) {
                 continue;
             }
 
-            const mid = (Math.random() * 0xFFFF) | 0;
+            const mid = getNextMid();
             const token = crypto.randomBytes(6);
             const extraOptions = [
                 { num: 7, value: Buffer.from([0xff, 0xff]) }
@@ -381,7 +382,7 @@ async function pushScheduleTransition(homeId, zoneId) {
 
             api._log('info', `[cmd-api] Schedule transition push to ${dev.serial_no} Z:${zoneId} via bridge ${bridge.bridgeId}`);
 
-            const mid = (Math.random() * 0xFFFF) | 0;
+            const mid = getNextMid();
             const token = crypto.randomBytes(8);
             const extraOptions = [
                 { num: 7, value: Buffer.from([0xff, 0xff]) }
@@ -686,7 +687,7 @@ async function pushHomeAway(homeId, isAway) {
 
             api._log('info', `[cmd-api] Home/Away push to ${dev.serial_no} Z:${zone.id} via bridge ${bridge.bridgeId}`);
 
-            const mid = (Math.random() * 0xFFFF) | 0;
+            const mid = getNextMid();
             const tokenLen = Math.floor(Math.random() * 8) + 1;
             const token = crypto.randomBytes(tokenLen);
 

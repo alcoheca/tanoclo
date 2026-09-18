@@ -12,7 +12,14 @@
  */
 const { getPool, _log, safeJsonParse, extractShortSerial, mapOrientation, unmapOrientation, mapMountState, generateEtag, tlvNameToHex, cleanFriendlyConfig, assertAllowedColumns } = require('./db-base');
 
-const ALLOWED_DEVICE_ACT_COLS = new Set(['in_pairing_mode', 'act_etag']);
+const ALLOWED_DEVICE_ACT_COLS = new Set([
+    'field_0265', 'field_0266', 'field_0273', 'field_027c', 'field_0280', 'field_0283', 'field_028c',
+    'in_pairing_mode', 'act_etag'
+]);
+const ALLOWED_DEVICE_FW_COLS = new Set([
+    'current_fw_version', 'field_0035', 'field_0039', 'fw_build_id', 'field_01a0',
+    'field_003b', 'field_0180', 'field_014c', 'field_0036', 'field_003c'
+]);
 const ALLOWED_DEVICE_SEN_COLS = new Set(['field_003b', 'field_0180', 'field_014c', 'field_0036', 'field_003c']);
 const ALLOWED_DEVICE_MOUNT_COLS = new Set(['field_016a', 'field_01fa', 'field_01fb', 'field_01b5', 'field_01b6']);
 const ALLOWED_DEVICE_CONFIG_COLS = new Set([
@@ -186,7 +193,7 @@ async function updateDeviceFirmware(serial, fields) {
 
     if (updates.length === 0) return;
     params.push(targetSerial);
-    assertAllowedColumns(updates, ALLOWED_DEVICE_SEN_COLS);
+    assertAllowedColumns(updates, ALLOWED_DEVICE_FW_COLS);
     await p.execute(`UPDATE devices SET ${updates.join(', ')} WHERE serial_no = ?`, params);
 }
 
