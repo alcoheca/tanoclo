@@ -47,14 +47,25 @@ echo "Read - Done dumping internal flash"
 [[ -f "$unmodded_internal" ]] || { echo "Read - ERROR not found: $unmodded_internal" >&2; exit 2; }
 
 echo "Read: Dumping external SPI flash"
+rm -f spi_[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F].bin spi_[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F].chk
 openocd -f interface/stlink.cfg -f target/stm32f4x.cfg -f dump_external_flash.tcl
 echo "Read - Done dumping external SPI flash"
+
+# A full 2 MiB dump is exactly 512 chunks of 4 KiB. Anything else means the stub aborted mid-way.
+chunk_count=$(ls -1 spi_[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F].bin 2>/dev/null | wc -l | tr -d ' ')
+if [[ "$chunk_count" -ne 512 ]]; then
+  echo "Read - ERROR: SPI dump incomplete ($chunk_count of 512 chunks). Not combining; see OpenOCD errors above." >&2
+  rm -f spi_[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F].bin spi_[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F].chk
+  rm -f "$unmodded_spi"
+  exit 4
+fi
 
 echo "Read: Combining SPI chunks into 1 binary and removing chunks"
 ls -1 spi_[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F].bin | sort | xargs cat > $unmodded_spi
 rm -f spi_[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F].bin
 echo "Read - Done combining SPI chunks into 1 binary and removing chunks"
 
-[[ -f "$unmodded_spi" ]] || { echo "Read - ERROR: not found: $unmodded_spi" >&2; exit 2; }
+spi_size=$(wc -c < "$unmodded_spi" | tr -d ' ')
+[[ "$spi_size" -eq 2097152 ]] || { echo "Read - ERROR: $unmodded_spi is $spi_size bytes, expected 2097152" >&2; exit 4; }
 
 echo "Read - Done"
