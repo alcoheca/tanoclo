@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-09-20
+
+- fix: fix issues found after audit based improvements
+- feat: audit based improvements to ws-server
+
 ## [0.3.2] - 2026-09-15
 
 - fix: prevent logout on language change
