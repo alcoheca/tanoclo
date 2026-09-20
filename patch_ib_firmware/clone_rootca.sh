@@ -138,7 +138,7 @@ make_issuer_cert() {
 BEST_DIFF=999999
 BEST_DER="$WORK/best.der"
 
-for i in $(seq 9404289437119033189 9404289437119064190); do
+for (( i=9404289437119033189; i<=9404289437119064190; i++ )); do  # bash arithmetic: BSD seq loses precision at this magnitude
   reset_ca_db
 
   SERIAL="$(printf "%016X" "$i")"
