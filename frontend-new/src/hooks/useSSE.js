@@ -2,10 +2,13 @@
  * @file src/hooks/useSSE.js
  * @brief Custom hook managing a real-time Server-Sent Events (SSE) stream client.
  * 
- * Requests a short-lived event ticket from the server, opens a persistent connection
- * to `/api/homes/:homeId/events`, and maps server pushed updates (zone states, device configurations,
- * presence states) directly to local cache mutations using SWR. Includes a robust exponential
- * backoff reconnection policy, heartbeat watchdog, and automatic recovery on network/visibility changes.
+ * Multiplexes SSE across multiple browser tabs using a BroadcastChannel tab-leader election.
+ * Exactly ONE tab (the leader) maintains the persistent EventSource connection to the server,
+ * broadcasting incoming events to all other open tabs (followers). This prevents hitting browser
+ * HTTP/1.1 per-host connection limits (max 6 connections) and socket queue deadlock.
+ * 
+ * Includes exponential backoff reconnection policy, heartbeat watchdog, automatic failover
+ * if the leader tab closes, and automatic recovery on network/visibility changes.
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -40,22 +43,108 @@ export function useSSE(homeId) {
 
     lastHeartbeatRef.current = Date.now();
     const apiBase = getApiBase();
-    // Normalize url base (remove trailing slash if present)
     const base = apiBase.endsWith('/') ? apiBase.slice(0, -1) : apiBase;
-    let es = null;
+
     let active = true;
+    let es = null;
+    let isLeader = false;
+    let isConnecting = false;
     let reconnectDelay = 2000;
     let reconnectTimer = null;
     let watchdogTimer = null;
-    let isConnecting = false;
+    let heartbeatTimer = null;
+    let electionTimer = null;
+    let lastLeaderSeen = 0;
+
+    const myTabId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const channelName = `tanoclo_sse_home_${homeId}`;
+    const hasBroadcastChannel = typeof globalThis.BroadcastChannel !== 'undefined';
+    const channel = hasBroadcastChannel ? new globalThis.BroadcastChannel(channelName) : null;
 
     function markActivity() {
       lastHeartbeatRef.current = Date.now();
       setLastEventAt(Date.now());
     }
 
+    /**
+     * Dispatches and maps server-pushed updates directly to local cache mutations using SWR.
+     */
+    function handleSSEEvent(name, rawData) {
+      markActivity();
+      let parsed = null;
+      if (rawData) {
+        try { parsed = JSON.parse(rawData); } catch (_err) { /* expected */ }
+      }
+
+      switch (name) {
+        case 'connected':
+          setIsConnected(true);
+          reconnectDelay = 2000;
+          if (mutateRef.current) {
+            mutateRef.current(SWR_KEYS.zoneStates(homeId));
+            mutateRef.current(SWR_KEYS.homeState(homeId));
+            mutateRef.current(SWR_KEYS.zones(homeId));
+          }
+          break;
+        case 'zone-state':
+          if (mutateRef.current) {
+            mutateRef.current(SWR_KEYS.zoneStates(homeId));
+            if (parsed && parsed.zoneId != null) {
+              mutateRef.current(SWR_KEYS.zoneState(homeId, parsed.zoneId));
+            }
+          }
+          break;
+        case 'zone-config':
+          if (mutateRef.current) {
+            mutateRef.current(SWR_KEYS.zones(homeId));
+            mutateRef.current(SWR_KEYS.zoneStates(homeId));
+            if (parsed && parsed.zoneId != null) {
+              mutateRef.current(SWR_KEYS.zoneState(homeId, parsed.zoneId));
+            }
+          }
+          break;
+        case 'device-state':
+          if (mutateRef.current) {
+            mutateRef.current(SWR_KEYS.devices(homeId));
+            mutateRef.current(SWR_KEYS.zoneStates(homeId));
+            mutateRef.current(SWR_KEYS.batteryDevices(homeId));
+            mutateRef.current(SWR_KEYS.batteryDevicesRaw(homeId));
+            if (parsed && parsed.deviceId) {
+              mutateRef.current(SWR_KEYS.deviceDetails(homeId, parsed.deviceId));
+              mutateRef.current(SWR_KEYS.deviceRaw(homeId, parsed.deviceId));
+            }
+          }
+          break;
+        case 'device-debug-response':
+          if (parsed && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('device-debug-response', { detail: parsed }));
+          }
+          break;
+        case 'home-state':
+          if (mutateRef.current) {
+            mutateRef.current(SWR_KEYS.homeState(homeId));
+            mutateRef.current(SWR_KEYS.zoneStates(homeId));
+          }
+          break;
+        case 'ping':
+        case 'heartbeat':
+          // markActivity already updated
+          break;
+        default:
+          break;
+      }
+    }
+
+    function broadcast(msg) {
+      if (channel) {
+        try {
+          channel.postMessage(msg);
+        } catch (_err) { /* ignore */ }
+      }
+    }
+
     function scheduleReconnect(immediate = false) {
-      if (!active || isConnecting) return;
+      if (!active || !isLeader || isConnecting) return;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       setIsConnected(false);
 
@@ -71,17 +160,17 @@ export function useSSE(homeId) {
 
       logger.debug(`Scheduling SSE reconnect in ${delay}ms`);
       reconnectTimer = setTimeout(() => {
-        if (active) {
+        if (active && isLeader) {
           connectSSE();
         }
       }, delay);
     }
 
     /**
-     * @brief Asynchronously fetches connection ticket and configures the EventSource object.
+     * Establishes the real EventSource connection (leader tab only).
      */
     async function connectSSE() {
-      if (!active || isConnecting) return;
+      if (!active || !isLeader || isConnecting) return;
       isConnecting = true;
 
       const token = localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
@@ -91,7 +180,6 @@ export function useSSE(homeId) {
         return;
       }
 
-      // Close previous instance if any
       if (es) {
         try { es.close(); } catch (_e) { /* expected */ }
         es = null;
@@ -99,114 +187,39 @@ export function useSSE(homeId) {
       esRef.current = null;
 
       try {
-        // Fetch a one-time connection ticket to avoid exposing the bearer token directly in query parameters
         const { ticket } = await apiFetch(`/api/homes/${homeId}/events/ticket`, {
           method: 'POST'
         });
 
-        if (!active) {
+        if (!active || !isLeader) {
           isConnecting = false;
           return;
         }
 
         const sseUrl = `${base}/api/homes/${homeId}/events?ticket=${ticket}`;
-        logger.info(`Connecting to SSE stream for home ${homeId} via ticket...`);
+        logger.info(`[SSE Leader ${myTabId}] Connecting to SSE stream for home ${homeId} via ticket...`);
 
         es = new EventSource(sseUrl);
         esRef.current = es;
         isConnecting = false;
 
-        // Triggered upon successful authentication and handshake
-        es.addEventListener('connected', (e) => {
-          logger.info('SSE connected:', e.data ? JSON.parse(e.data) : {});
-          setIsConnected(true);
-          reconnectDelay = 2000;
+        const eventNames = [
+          'connected', 'zone-state', 'zone-config', 'device-state',
+          'device-debug-response', 'home-state', 'ping', 'heartbeat'
+        ];
+
+        for (const evName of eventNames) {
+          es.addEventListener(evName, (e) => {
+            handleSSEEvent(evName, e.data);
+            broadcast({ type: 'sse-event', name: evName, data: e.data });
+          });
+        }
+
+        es.onmessage = (e) => {
           markActivity();
-
-          // Immediately re-sync to ensure no state updates were missed during disconnect
-          if (mutateRef.current) {
-            mutateRef.current(SWR_KEYS.zoneStates(homeId));
-            mutateRef.current(SWR_KEYS.homeState(homeId));
-            mutateRef.current(SWR_KEYS.zones(homeId));
-          }
-        });
-
-        // Telemetry / measurement update: invalidate and trigger reload of active zone stats
-        es.addEventListener('zone-state', (e) => {
-          logger.debug('SSE received zone-state:', e.data);
-          markActivity();
-          let parsed = null;
-          try { parsed = JSON.parse(e.data); } catch (_err) { /* expected */ }
-
-          mutateRef.current(SWR_KEYS.zoneStates(homeId));
-          if (parsed && parsed.zoneId != null) {
-            mutateRef.current(SWR_KEYS.zoneState(homeId, parsed.zoneId));
-          }
-        });
-
-        // Layout update: invalidate and reload zone entities list
-        es.addEventListener('zone-config', (e) => {
-          logger.debug('SSE received zone-config:', e.data);
-          markActivity();
-          let parsed = null;
-          try { parsed = JSON.parse(e.data); } catch (_err) { /* expected */ }
-
-          mutateRef.current(SWR_KEYS.zones(homeId));
-          mutateRef.current(SWR_KEYS.zoneStates(homeId));
-          if (parsed && parsed.zoneId != null) {
-            mutateRef.current(SWR_KEYS.zoneState(homeId, parsed.zoneId));
-          }
-        });
-
-        // Device update: invalidate and trigger reload of device indicators
-        es.addEventListener('device-state', (e) => {
-          logger.debug('SSE received device-state:', e.data);
-          markActivity();
-          let parsed = null;
-          try { parsed = JSON.parse(e.data); } catch (_err) { /* expected */ }
-
-          mutateRef.current(SWR_KEYS.devices(homeId));
-          mutateRef.current(SWR_KEYS.zoneStates(homeId));
-          mutateRef.current(SWR_KEYS.batteryDevices(homeId));
-          mutateRef.current(SWR_KEYS.batteryDevicesRaw(homeId));
-          if (parsed && parsed.deviceId) {
-            mutateRef.current(SWR_KEYS.deviceDetails(homeId, parsed.deviceId));
-            mutateRef.current(SWR_KEYS.deviceRaw(homeId, parsed.deviceId));
-          }
-        });
-
-        // Device debug response: push live diagnostic/NVM response directly to components
-        es.addEventListener('device-debug-response', (e) => {
-          logger.debug('SSE received device-debug-response:', e.data);
-          markActivity();
-          try {
-            const parsed = JSON.parse(e.data);
-            window.dispatchEvent(new CustomEvent('device-debug-response', { detail: parsed }));
-          } catch (_err) { /* expected */ }
-        });
-
-        // Presence update: invalidate and reload HOME/AWAY occupancy state
-        es.addEventListener('home-state', (e) => {
-          logger.debug('SSE received home-state:', e.data);
-          markActivity();
-          mutateRef.current(SWR_KEYS.homeState(homeId));
-          mutateRef.current(SWR_KEYS.zoneStates(homeId));
-        });
-
-        // Heartbeat / ping from server to maintain active connection
-        es.addEventListener('ping', () => {
-          markActivity();
-        });
-
-        es.addEventListener('heartbeat', () => {
-          markActivity();
-        });
-
-        es.onmessage = () => {
-          markActivity();
+          broadcast({ type: 'sse-event', name: 'message', data: e.data });
         };
 
-        // Connection error handler: schedule reconnect with exponential backoff
         es.onerror = (err) => {
           logger.error('SSE Error, reconnecting:', err);
           if (es) {
@@ -228,12 +241,92 @@ export function useSSE(homeId) {
       }
     }
 
-    connectSSE();
+    function becomeLeader() {
+      if (isLeader || !active) return;
+      isLeader = true;
+      logger.info(`[SSE] Tab ${myTabId} elected as SSE leader for home ${homeId}`);
+      broadcast({ type: 'heartbeat', leaderId: myTabId, isConnected: false });
+      connectSSE();
+    }
 
-    // Heartbeat Watchdog: check every 15s to detect silent dead TCP sockets
-    // (server sends ping heartbeat every 20s)
+    function stepDown() {
+      if (!isLeader) return;
+      isLeader = false;
+      logger.info(`[SSE] Tab ${myTabId} stepped down as leader for home ${homeId}`);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (es) {
+        try { es.close(); } catch (_e) { /* expected */ }
+        es = null;
+      }
+      esRef.current = null;
+    }
+
+    // BroadcastChannel message router (multi-tab sync)
+    if (channel) {
+      channel.onmessage = (event) => {
+        if (!active || !event.data) return;
+        const msg = event.data;
+
+        if (msg.type === 'heartbeat') {
+          lastLeaderSeen = Date.now();
+          if (isLeader && msg.leaderId !== myTabId) {
+            // Split-brain resolution: lowest alphanumeric ID wins
+            if (msg.leaderId < myTabId) {
+              stepDown();
+            }
+          }
+          if (!isLeader) {
+            setIsConnected(!!msg.isConnected);
+            setLastEventAt(Date.now());
+          }
+        } else if (msg.type === 'sse-event') {
+          if (!isLeader) {
+            handleSSEEvent(msg.name, msg.data);
+          }
+        } else if (msg.type === 'leader-resigned') {
+          lastLeaderSeen = 0;
+          const jitter = Math.floor(Math.random() * 250);
+          setTimeout(() => {
+            if (active && !isLeader && (Date.now() - lastLeaderSeen > 500)) {
+              becomeLeader();
+            }
+          }, jitter);
+        }
+      };
+    }
+
+    // Periodic leader election check: if no leader heartbeat heard for > 3500ms, claim leadership
+    if (hasBroadcastChannel) {
+      electionTimer = setInterval(() => {
+        if (!active) return;
+        const elapsed = Date.now() - lastLeaderSeen;
+        if (!isLeader && elapsed > 3500) {
+          becomeLeader();
+        }
+      }, 1500);
+
+      // Leader heartbeat broadcast every 2000ms
+      heartbeatTimer = setInterval(() => {
+        if (!active) return;
+        if (isLeader) {
+          broadcast({ type: 'heartbeat', leaderId: myTabId, isConnected: !!esRef.current });
+        }
+      }, 2000);
+
+      // Initial election: claim after 300ms if no other leader announces itself
+      setTimeout(() => {
+        if (active && !isLeader && lastLeaderSeen === 0) {
+          becomeLeader();
+        }
+      }, 300);
+    } else {
+      // Fallback for environments without BroadcastChannel
+      becomeLeader();
+    }
+
+    // Watchdog: detect silent dead TCP sockets on the leader
     watchdogTimer = setInterval(() => {
-      if (!active) return;
+      if (!active || !isLeader) return;
       const elapsed = Date.now() - (lastHeartbeatRef.current || Date.now());
       if (esRef.current && elapsed > 60000) {
         logger.warn(`SSE watchdog: no heartbeat for ${Math.round(elapsed / 1000)}s. Reconnecting.`);
@@ -245,39 +338,61 @@ export function useSSE(homeId) {
       }
     }, 15000);
 
-    // Immediate recovery when device regains network connectivity
     const handleOnline = () => {
-      if (active) {
+      if (active && isLeader) {
         logger.info('Network online event detected — forcing SSE reconnect');
         scheduleReconnect(true);
       }
     };
     window.addEventListener('online', handleOnline);
 
-    // Reset reconnect state when the tab/app becomes visible again
     const handleVisibility = () => {
       if (document.visibilityState === 'visible' && active) {
-        const elapsed = Date.now() - (lastHeartbeatRef.current || Date.now());
-        if (!esRef.current || elapsed > 40000) {
-          logger.info('Tab/app became visible and SSE needs refresh — reconnecting');
-          scheduleReconnect(true);
+        if (isLeader) {
+          const elapsed = Date.now() - (lastHeartbeatRef.current || Date.now());
+          if (!esRef.current || elapsed > 40000) {
+            logger.info('Tab visible and leader SSE needs refresh — reconnecting');
+            scheduleReconnect(true);
+          }
+        } else if (Date.now() - lastLeaderSeen > 3500) {
+          becomeLeader();
         }
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
-    // Close connections and clear timers on component unmount
+    const handleBeforeUnload = () => {
+      if (isLeader) {
+        broadcast({ type: 'leader-resigned', leaderId: myTabId });
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
       active = false;
-      logger.info(`Disconnecting SSE stream for home ${homeId}`);
+      logger.info(`Disconnecting SSE hook for home ${homeId} (tab ${myTabId})`);
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibility);
+
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (watchdogTimer) clearInterval(watchdogTimer);
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      if (electionTimer) clearInterval(electionTimer);
+
+      if (isLeader) {
+        broadcast({ type: 'leader-resigned', leaderId: myTabId });
+      }
+
       if (es) {
         try { es.close(); } catch (_e) { /* expected */ }
       }
       esRef.current = null;
+
+      if (channel) {
+        try { channel.close(); } catch (_err) { /* ignore */ }
+      }
+
       setIsConnected(false);
     };
   }, [homeId]);
