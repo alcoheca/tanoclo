@@ -317,9 +317,38 @@ app.get('/api/health', healthLimiter, authMiddleware, async (req, res) => {
 });
 
 const commandRouter = express.Router();
+
+function localhostCommandAuthMiddleware(req, res, next) {
+    const clientIp = req.ip || req.socket.remoteAddress || '';
+    const isLocalhost = clientIp === '127.0.0.1' ||
+                        clientIp === '::1' ||
+                        clientIp === '::ffff:127.0.0.1' ||
+                        clientIp === 'localhost';
+
+    if (isLocalhost) {
+        return next();
+    }
+
+    const isInternalCommandPath = req.path === '/clients' ||
+        req.path === '/send' ||
+        req.path === '/send-raw' ||
+        req.path === '/time/broadcast' ||
+        req.path.startsWith('/commands') ||
+        req.path === '/metrics' ||
+        req.path.startsWith('/devices/');
+
+    if (isInternalCommandPath) {
+        _log('warn', `[CommandApi] Blocked non-localhost access from ${clientIp} to ${req.method} ${req.originalUrl}`);
+        return res.status(403).json({ error: 'forbidden', message: 'Command Router is only accessible on localhost' });
+    }
+
+    return next('router');
+}
+
 function setupCommandRoutes(opts) {
     const commandApi = require('../lib/command-api');
     const realRouter = commandApi.getRouter(opts);
+    commandRouter.use(localhostCommandAuthMiddleware);
     commandRouter.use(realRouter);
     if (opts.messageCache) {
         setupRouter.setDownlinkCache(opts.messageCache);
