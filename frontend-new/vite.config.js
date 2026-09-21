@@ -35,18 +35,20 @@ export default defineConfig(({ mode }) => {
       react(),
       {
         name: 'inject-sw-version',
+        apply: 'build',
         // Hook called after the production bundle is completely compiled
         closeBundle() {
           const swPath = path.resolve(__dirname, '../ws-server/frontend-dist/sw.js');
           if (fs.existsSync(swPath)) {
             let content = fs.readFileSync(swPath, 'utf-8');
             const distDir = path.resolve(__dirname, '../ws-server/frontend-dist');
-            // Gather all chunk files to compute a version hash
-            const files = fs.readdirSync(distDir).filter(f => f.endsWith('.js') || f.endsWith('.css'));
+            const assetsDir = path.join(distDir, 'assets');
             const hash = crypto.createHash('md5');
-            for (const f of files.sort()) {
-              if (f === 'sw.js') continue;
-              hash.update(fs.readFileSync(path.join(distDir, f)));
+            if (fs.existsSync(assetsDir)) {
+              const files = fs.readdirSync(assetsDir).filter(f => f.endsWith('.js') || f.endsWith('.css'));
+              for (const f of files.sort()) {
+                hash.update(fs.readFileSync(path.join(assetsDir, f)));
+              }
             }
             const version = 'v' + hash.digest('hex').slice(0, 12);
             // Replace the hardcoded sw cache shell name with the new hashed name
@@ -61,6 +63,7 @@ export default defineConfig(({ mode }) => {
       // Direct build output directory inside the websocket server public path
       outDir: '../ws-server/frontend-dist',
       emptyOutDir: false,
+      modulePreload: false,
       rollupOptions: {
         output: {
           // Manual chunk splitting to optimize vendor bundle sizes and browser cache efficiency
