@@ -516,7 +516,7 @@ async function handleCircuitConfig(req, res, homeId, circuitId) {
 
     try {
         const [rows] = await _db.getPool().execute('SELECT last_config_json FROM heating_circuits WHERE home_id=? AND number=?', [homeId, circuitId]);
-        let currentConfig = rows.length > 0 ? JSON.parse(rows[0].last_config_json || '{}') : {};
+        let currentConfig = rows.length > 0 ? (typeof rows[0].last_config_json === 'object' && rows[0].last_config_json !== null ? rows[0].last_config_json : JSON.parse(rows[0].last_config_json || '{}')) : {};
 
         module.exports.updateFieldInMap(currentConfig, 'circuit_dhw_max_flow_temperature', body.max_temp);
 
@@ -550,7 +550,7 @@ async function handleZoneConfig(req, res, homeId, zoneId) {
 
     try {
         const [rows] = await _db.getPool().execute('SELECT last_config_json FROM zones WHERE id=? AND home_id=?', [zoneId, homeId]);
-        let currentConfig = rows.length > 0 ? JSON.parse(rows[0].last_config_json || '{}') : {};
+        let currentConfig = rows.length > 0 ? (typeof rows[0].last_config_json === 'object' && rows[0].last_config_json !== null ? rows[0].last_config_json : JSON.parse(rows[0].last_config_json || '{}')) : {};
 
         const updatedConfig = { ...currentConfig };
         for (const [k, v] of Object.entries(body.changes)) {

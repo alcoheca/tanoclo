@@ -448,6 +448,7 @@ async function buildCircuitConfigTLV(homeId, circuitNumber) {
 
 module.exports = {
     CONFIG_FIDS_ORDER,
+    sortConfigFields,
     getTlvLabels,
     buildDeviceConfigTLV,
     buildDeviceSensorTLV,

@@ -383,7 +383,8 @@ async function updateLastConfigJsonFromLive(serial, decodedFields, etag) {
 
     let mergedConfig = safeJsonParse(dbDev.last_config_json);
     Object.assign(mergedConfig, decodedFields);
-    mergedConfig = cleanFriendlyConfig(mergedConfig);
+    const { sortConfigFields } = require('../db-utils');
+    mergedConfig = sortConfigFields(cleanFriendlyConfig(mergedConfig));
 
     const tempOffset = decodedFields['0x0140'] ?? decodedFields.field_0140;
     const rawOrient = decodedFields['0x0149'] ?? decodedFields.config_field_0149 ?? decodedFields.va_orientation ?? decodedFields.field_0149;
