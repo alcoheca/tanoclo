@@ -18,8 +18,9 @@ const crypto = require('crypto');
 
 // Canonical order of config FIDs for d/config TLV payloads.
 // Single source of truth — imported by command-api.js and coap-transport.js.
+// Note: Unknown HVAC FIDs (0x046c, 0x046d, 0x0471, 0x0481) stripped from device config;
 const CONFIG_FIDS_ORDER = [
-    0x0143, 0x0140, 0x015d, 0x6020, 0x63e0, 0x63a0, 0x8400, 0x8200, 0x6380, 0x2040, 0x046c, 0x046d, 0x0471, 0x0481, 0x015c, 0x019d, 0x019e, 0x02b2, 0x02b3, 0x021a, 0x0149, 0x015e, 0x0158, 0x015a
+    0x0143, 0x0140, 0x015d, 0x015c, 0x019d, 0x019e, 0x02b2, 0x02b3, 0x021a, 0x0149, 0x015e, 0x0158, 0x015a, 0x0155
 ];
 
 function sortConfigFields(fields) {
@@ -87,6 +88,9 @@ async function buildDeviceConfigTLV(deviceId) {
         return null;
     }
 
+    const isIB = deviceId.startsWith('IB');
+    const isRU = deviceId.startsWith('RU') || deviceId.startsWith('WR') || deviceId.startsWith('SU') || deviceId.startsWith('BP') || deviceId.startsWith('BR');
+
     const zoneId = dbDev.zone_id || 1;
     const p = getPool();
     const [zoneRows] = await p.execute('SELECT dazzle_enabled, offline_schedule_enabled FROM zones WHERE id = ? AND home_id = ?', [zoneId, dbDev.home_id]);
@@ -95,8 +99,8 @@ async function buildDeviceConfigTLV(deviceId) {
     _log('debug', `Parsing base JSON from DB...`);
     let fields = safeJsonParse(dbDev.last_config_json);
 
-    // Metadata cleanup to avoid duplicate FIDs
-    // We remove both named and numeric keys to ensure we start from a clean slate
+    // Metadata cleanup to avoid duplicate FIDs and strip leaked cross-domain FIDs
+    // We remove named, numeric, zone, circuit, and hvac keys to ensure a clean slate
     [
         'home_id', 'zone_id', 'field_015e',
         'device_config_flag_02b3', 'device_config_015a', 'device_config_015c',
@@ -107,15 +111,27 @@ async function buildDeviceConfigTLV(deviceId) {
         'display_active_timeout', '0x02b2',
         'display_orientation', '0x0149',
         'device_flag_0143', '0x0143',
-        '0x01a0', '0x003a', '0x003b', '0x0035', '0x0039', '0x0036', '0x003c', '0x0210', '0x0180', '0x014c'
+        '0x01a0', '0x003a', '0x003b', '0x0035', '0x0039', '0x0036', '0x003c', '0x0210', '0x0180', '0x014c',
+        // Strip circuit FIDs (belong only in circuit config)
+        '0x2040',
+        // Strip zone FIDs (belong only in zone config)
+        '0x6020', '0x63e0', '0x63a0', '0x8400', '0x8200', '0x8000',
+        '0x6380', '0x6060', '0x6040', '0x6080', '0x60a0', '0x60c0', '0x60e0', '0x62c0', '0x6340',
+        // Strip HVAC / unknown FIDs (belong only in hvac config)
+        '0x046c', '0x046d', '0x0471', '0x0481'
     ].forEach(k => delete fields[k]);
 
     // Use strictly hex keys
-    fields['0x0140'] = parseFloat(dbDev.field_0140) || 0; // field_0140
-    fields['0x019e'] = dbDev.field_019e !== null && dbDev.field_019e !== undefined ? dbDev.field_019e : 112; // display_brightness
-    fields['0x019d'] = dbDev.field_019d !== null && dbDev.field_019d !== undefined ? dbDev.field_019d : 128; // display_contrast
-    fields['0x02b2'] = dbDev.field_02b2 !== null && dbDev.field_02b2 !== undefined ? dbDev.field_02b2 : 0; // display_active_timeout
-    fields['0x0149'] = unmapOrientation(dbDev.field_0149); // field_0149
+    fields['0x0140'] = parseFloat(dbDev.field_0140) || 0; // field_0140 (temperature offset)
+    if (!isRU) {
+        // Omit display brightness, contrast, timeout, orientation, and aux 0x021a for RU
+        fields['0x019e'] = dbDev.field_019e !== null && dbDev.field_019e !== undefined ? dbDev.field_019e : 112; // display_brightness
+        fields['0x019d'] = dbDev.field_019d !== null && dbDev.field_019d !== undefined ? dbDev.field_019d : 128; // display_contrast
+        fields['0x02b2'] = dbDev.field_02b2 !== null && dbDev.field_02b2 !== undefined ? dbDev.field_02b2 : 0; // display_active_timeout
+        fields['0x0149'] = unmapOrientation(dbDev.field_0149); // display_orientation
+    } else {
+        delete fields['0x021a'];
+    }
     fields['0x0158'] = dazzleEnabled ? 0x0200 : 0x0000; // field_0158
     fields['0x0143'] = false; // device_flag_0143 (child lock available)
 
@@ -125,42 +141,11 @@ async function buildDeviceConfigTLV(deviceId) {
     const [boilerRows] = await p.execute("SELECT serial_no FROM devices WHERE home_id = ? AND (device_type LIKE 'RU%' OR device_type LIKE 'BU%') LIMIT 1", [dbDev.home_id]);
     _log('debug', `Found ${boilerRows.length} boilers.`);
     const homeHasBoiler = boilerRows.length > 0;
-    const isIB = deviceId.startsWith('IB');
-    const isRU = deviceId.startsWith('RU') || deviceId.startsWith('WR') || deviceId.startsWith('SU') || deviceId.startsWith('BP') || deviceId.startsWith('BR');
 
     const pairs = await getZoneBindingsForDevice(deviceId);
 
     if (pairs.length > 0) {
         fields['0x015e'] = pairs;
-    }
-
-    if (isRU && dbDev.zone_id) {
-        const [zoneDevs] = await p.execute(
-            'SELECT serial_no, device_type, ipv6_address FROM devices WHERE home_id = ? AND zone_id = ?',
-            [dbDev.home_id, dbDev.zone_id]
-        );
-        if (zoneDevs.length > 0) {
-            const [zRows] = await p.execute('SELECT measuring_device_serial FROM zones WHERE id = ? AND home_id = ?', [dbDev.zone_id, dbDev.home_id]);
-            const measuringSerial = zRows.length > 0 ? zRows[0].measuring_device_serial : null;
-            const leaderDev = zoneDevs.find(d => d.serial_no === measuringSerial) || zoneDevs[0];
-            const vaDevs = zoneDevs.filter(d => d.device_type && d.device_type.startsWith('VA'));
-
-            if (leaderDev && leaderDev.ipv6_address) {
-                fields['0x63a0'] = `coap://[${leaderDev.ipv6_address}]/z/s`;
-            }
-
-            if (vaDevs.length > 0) {
-                const zps = vaDevs.filter(d => d.ipv6_address).map(d => `coap://[${d.ipv6_address}]/z/p`);
-                if (zps.length > 0) fields['0x8400'] = zps.length === 1 ? zps[0] : zps;
-                const cpes = vaDevs.filter(d => d.ipv6_address).map(d => `coap://[${d.ipv6_address}]/z/cpe`);
-                if (cpes.length > 0) fields['0x8200'] = cpes.length === 1 ? cpes[0] : cpes;
-            } else if (leaderDev && leaderDev.ipv6_address) {
-                fields['0x8400'] = `coap://[${leaderDev.ipv6_address}]/z/p`;
-                fields['0x8200'] = `coap://[${leaderDev.ipv6_address}]/z/cpe`;
-            }
-            fields['0x6020'] = dbDev.zone_id;
-            fields['0x63e0'] = true;
-        }
     }
 
     // Dynamic ETag Generation for Valve Actuators
@@ -181,7 +166,8 @@ async function buildDeviceConfigTLV(deviceId) {
         // Tado uses the hash as the first 2 bytes, followed by a 6-byte suffix.
         await p.execute('UPDATE devices SET config_etag = ? WHERE serial_no = ?', [Buffer.from(etag8, 'hex'), deviceId]);
         _log('debug', `Generated and stored stable VA ETag: ${etag8} (hash: 0x${hash.toString(16).padStart(4, '0')})`);
-    } else if (dbDev.field_015a) {
+    } else if (!isRU && dbDev.field_015a) {
+        // ETag (0x015a) stripped for RU devices.
         fields['0x015a'] = dbDev.field_015a;
     }
 
