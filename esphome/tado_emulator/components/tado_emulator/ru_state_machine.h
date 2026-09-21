@@ -20,11 +20,12 @@ enum RUState : uint8_t {
   STATE_PAIRING_TOKEN = 3,
   STATE_ONBOARD_FW_STATE = 4,
   STATE_ONBOARD_CONFIG = 5,
-  STATE_ONBOARD_ACT = 6,
-  STATE_ONBOARD_ERR = 7,
-  STATE_ONBOARD_SEN = 8,
-  STATE_OPERATIONAL = 9,
-  STATE_FAILED = 10
+  STATE_ONBOARD_ZONE_CONFIG = 6,
+  STATE_ONBOARD_ACT = 7,
+  STATE_ONBOARD_ERR = 8,
+  STATE_ONBOARD_SEN = 9,
+  STATE_OPERATIONAL = 10,
+  STATE_FAILED = 11
 };
 
 // Outbound RF frame with frame counter and sequence metadata
@@ -129,6 +130,9 @@ struct EmulatedDeviceConfig {
   std::string target_url_s{"coap://"};
   uint8_t zone_mode{1};                 // 1 = heating
   int16_t temp_offset_raw{0};           // 0x0140 temperature offset (s16be, scale 0.01°C)
+  uint8_t current_demand_percent{0};    // 0x40a0 calculated heating demand
+  uint32_t zone_config_block{0};        // Current Block2 block index when pulling zone config
+  bool boot_sync_done{false};           // Trigger startup sync on first operational tick
 
   // Timing and Sequence Tracking
   uint8_t seq_num{1};

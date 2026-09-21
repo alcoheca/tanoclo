@@ -477,6 +477,9 @@ function cleanFriendlyConfig(fields) {
     if (!fields || typeof fields !== 'object') return {};
     const tlv = require('./tlv');
     const cleaned = {};
+    const labels = tlv.getLabels();
+    const hasLabels = labels && Object.keys(labels).length > 0;
+
     for (const [k, v] of Object.entries(fields)) {
         if (v === null || v === undefined) continue;
         let hexKey;
@@ -484,8 +487,11 @@ function cleanFriendlyConfig(fields) {
         if (k.startsWith('0x')) {
             const fid = parseInt(k, 16);
             if (!isNaN(fid)) {
-                hexKey = '0x' + fid.toString(16).toLowerCase().padStart(4, '0');
-                isExplicitHex = true;
+                // If labels dictionary is loaded, ensure FID is recognized (prevents saving ASCII/partial Block2 fragments like 0x3037)
+                if (!hasLabels || tlv.getLabel(fid)) {
+                    hexKey = '0x' + fid.toString(16).toLowerCase().padStart(4, '0');
+                    isExplicitHex = true;
+                }
             }
         } else {
             const fid = tlv.getFidByLabelName(k);

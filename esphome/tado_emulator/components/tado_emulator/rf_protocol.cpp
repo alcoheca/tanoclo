@@ -352,42 +352,133 @@ bool decrypt_aes128_ecb(const uint8_t *ciphertext_16b, const uint8_t *key, uint8
 // 6LoWPAN IPHC / NHC & Checksums
 // ---------------------------------------------------------------------------
 
+static int parse_6lowpan_iphc_udp(const uint8_t *buf, size_t len, size_t offset, uint16_t *out_src_port, uint16_t *out_dst_port) {
+  if (len < offset + 2) return -1;
+  const uint8_t *p = buf + offset;
+  const uint8_t *end = buf + len;
+
+  uint8_t iphc0 = *p++;
+  uint8_t iphc1 = *p++;
+
+  // CID extension
+  if (iphc1 & 0x80) {
+    if (p >= end) return -1;
+    p++;
+  }
+
+  // Traffic Class & Flow Label
+  uint8_t tf = (iphc0 >> 3) & 0x03;
+  if (tf == 0) p += 4;
+  else if (tf == 1) p += 3;
+  else if (tf == 2) p += 1;
+
+  // Next Header inline?
+  bool nh_c = (iphc0 & 0x04) != 0;
+  if (!nh_c) {
+    if (p >= end) return -1;
+    p++; // Next protocol byte
+  }
+
+  // Hop Limit
+  uint8_t hlim = iphc0 & 0x03;
+  if (hlim == 0) {
+    if (p >= end) return -1;
+    p++; // 1 byte inline hop limit
+  }
+
+  // Source Address
+  uint8_t sac = (iphc1 >> 6) & 0x01;
+  uint8_t sam = (iphc1 >> 4) & 0x03;
+  if (sac == 0) {
+    if (sam == 0) p += 16;
+    else if (sam == 1) p += 8;
+    else if (sam == 2) p += 2;
+  } else {
+    if (sam == 1) p += 8;
+    else if (sam == 2) p += 2;
+  }
+
+  // Destination Address
+  uint8_t m = (iphc1 >> 3) & 0x01;
+  uint8_t dac = (iphc1 >> 2) & 0x01;
+  uint8_t dam = iphc1 & 0x03;
+  if (m == 0) {
+    if (dac == 0) {
+      if (dam == 0) p += 16;
+      else if (dam == 1) p += 8;
+      else if (dam == 2) p += 2;
+    } else {
+      if (dam == 1) p += 8;
+      else if (dam == 2) p += 2;
+    }
+  } else {
+    if (dac == 0) {
+      if (dam == 0) p += 16;
+      else if (dam == 1) p += 6;
+      else if (dam == 2) p += 4;
+      else if (dam == 3) p += 1;
+    }
+  }
+
+  if (p >= end) return -1;
+
+  // Next Header (UDP NHC)
+  if (nh_c) {
+    uint8_t nhc = *p++;
+    // Tado legacy / non-standard NHC: 0x33 followed by 0xF0
+    if (nhc == 0x33 && p < end && (*p & 0xF8) == 0xF0) {
+      nhc = *p++;
+    }
+    if ((nhc & 0xF8) == 0xF0) {
+      uint8_t ports_code = nhc & 0x03;
+      if (ports_code == 0) {
+        if (p + 4 > end) return -1;
+        if (out_src_port) *out_src_port = ((uint16_t)p[0] << 8) | p[1];
+        if (out_dst_port) *out_dst_port = ((uint16_t)p[2] << 8) | p[3];
+        p += 4;
+      } else if (ports_code == 1) {
+        if (p + 3 > end) return -1;
+        if (out_src_port) *out_src_port = ((uint16_t)p[0] << 8) | p[1];
+        if (out_dst_port) *out_dst_port = 0xF000 | p[2];
+        p += 3;
+      } else if (ports_code == 2) {
+        if (p + 3 > end) return -1;
+        if (out_src_port) *out_src_port = 0xF000 | p[0];
+        if (out_dst_port) *out_dst_port = ((uint16_t)p[1] << 8) | p[2];
+        p += 3;
+      } else if (ports_code == 3) {
+        if (p + 1 > end) return -1;
+        if (out_src_port) *out_src_port = 0xF0B0 | ((p[0] >> 4) & 0x0F);
+        if (out_dst_port) *out_dst_port = 0xF0B0 | (p[0] & 0x0F);
+        p += 1;
+      }
+      // Checksum
+      if ((nhc & 0x04) == 0) {
+        if (p + 2 > end) return -1;
+        p += 2;
+      }
+      return (int)(p - buf);
+    } else if (nhc == 0x00 && p < end && *p == 0xD7) {
+      // Legacy short compressed UDP header (0x7C 0x00 0xD7)
+      p++;
+      return (int)(p - buf);
+    }
+  }
+
+  return -1;
+}
+
 int find_coap_offset(const uint8_t *buf, size_t len, uint16_t *out_src_port, uint16_t *out_dst_port) {
   if (!buf || len < 4) return -1;
   if (out_src_port) *out_src_port = 5683;
   if (out_dst_port) *out_dst_port = 5683;
 
-  auto parse_ports = [](const uint8_t *p, uint8_t nhc, uint16_t *s_port, uint16_t *d_port) {
-    uint8_t ports_code = nhc & 0x03;
-    if (ports_code == 0) {
-      if (s_port) *s_port = ((uint16_t)p[0] << 8) | p[1];
-      if (d_port) *d_port = ((uint16_t)p[2] << 8) | p[3];
-    } else if (ports_code == 1) {
-      if (s_port) *s_port = ((uint16_t)p[0] << 8) | p[1];
-      if (d_port) *d_port = 0xF000 | p[2];
-    } else if (ports_code == 2) {
-      if (s_port) *s_port = 0xF000 | p[0];
-      if (d_port) *d_port = ((uint16_t)p[1] << 8) | p[2];
-    } else if (ports_code == 3) {
-      if (s_port) *s_port = 0xF0B0 | ((p[0] >> 4) & 0x0F);
-      if (d_port) *d_port = 0xF0B0 | (p[0] & 0x0F);
-    }
-  };
-
   // Case 1: Tado standard unicast framing (pt[3] == 0x04)
   if (buf[3] == 0x04 && len >= 9) {
     uint8_t disp = buf[8];
-    if (disp == 0x7E && len >= 17) {
-      // Uncompressed UDP: dispatch 0x7E, 8-byte NHC -> CoAP starts at 17
-      if (buf[9] == 0x33) {
-        if ((buf[10] & 0xF8) == 0xF0 && len >= 17) {
-          parse_ports(buf + 11, buf[10], out_src_port, out_dst_port);
-          return 17;
-        }
-      }
-    } else if (disp == 0x7C && len >= 12) {
-      // Compressed UDP header (0x7C 0x00 0xD7) -> CoAP starts at 12
-      if (buf[9] == 0x00 && buf[10] == 0xD7) return 12;
+    if ((disp & 0xE0) == 0x60) {
+      int off = parse_6lowpan_iphc_udp(buf, len, 8, out_src_port, out_dst_port);
+      if (off != -1) return off;
     } else if ((disp & 0xF8) == 0xC0 && len >= 13) {
       // FRAG1 inside Tado framing
       int sub = find_coap_offset(buf + 12, len - 12, out_src_port, out_dst_port);
@@ -397,15 +488,9 @@ int find_coap_offset(const uint8_t *buf, size_t len, uint16_t *out_src_port, uin
 
   // Case 2: Direct 6LoWPAN dispatch at pt[3]
   uint8_t d3 = buf[3];
-  if (d3 == 0x7E && len >= 12) {
-    if (buf[4] == 0x33) {
-      if ((buf[5] & 0xF8) == 0xF0 && len >= 12) {
-        parse_ports(buf + 6, buf[5], out_src_port, out_dst_port);
-        return 12;
-      }
-    }
-  } else if (d3 == 0x7C && len >= 7) {
-    if (buf[4] == 0x00 && buf[5] == 0xD7) return 7;
+  if ((d3 & 0xE0) == 0x60 && len >= 5) {
+    int off = parse_6lowpan_iphc_udp(buf, len, 3, out_src_port, out_dst_port);
+    if (off != -1) return off;
   } else if ((d3 & 0xF8) == 0xC0 && len >= 8) {
     // FRAG1 direct
     int sub = find_coap_offset(buf + 7, len - 7, out_src_port, out_dst_port);
@@ -414,6 +499,7 @@ int find_coap_offset(const uint8_t *buf, size_t len, uint16_t *out_src_port, uin
 
   return -1;
 }
+
 
 void mac_to_ipv6(const uint8_t *mac, uint8_t *ip) {
   std::memset(ip, 0, 16);
@@ -1091,15 +1177,21 @@ std::vector<uint8_t> build_d_sen_tlv(float temp_c, float hum_pct, uint16_t batte
   return tlv;
 }
 
-std::vector<uint8_t> build_z_p_tlv(float temp_c, float hum_pct) {
+std::vector<uint8_t> build_z_p_tlv(float temp_c, float hum_pct, uint8_t demand_pct) {
   std::vector<uint8_t> tlv;
   int16_t temp_val = (int16_t)(temp_c * 100.0f);
   uint16_t hum_val = (uint16_t)(hum_pct * 10.0f);
 
   append_tlv_s16(tlv, TLV_ZONE_TEMP_4060, temp_val);
-  append_tlv_u8(tlv, TLV_ZONE_DEMAND_40A0, 0); // 0% demand / auto
+  append_tlv_u8(tlv, TLV_ZONE_DEMAND_40A0, demand_pct);
   append_tlv_u16(tlv, TLV_HUMIDITY_PERCENT, hum_val);
 
+  return tlv;
+}
+
+std::vector<uint8_t> build_z_act_tlv(uint8_t demand_pct) {
+  std::vector<uint8_t> tlv;
+  append_tlv_u8(tlv, TLV_ZONE_DEMAND_40A0, demand_pct);
   return tlv;
 }
 

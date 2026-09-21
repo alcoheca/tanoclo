@@ -478,6 +478,16 @@ async function applyOverlay(homeId, zoneId, setting, termination, pool) {
             [zoneId, homeId, settingType, settingPower, settingTempC, settingTempF, termType, termDuration, termExpiry]
         );
 
+        const overlayMode = (termType === 'TIMER' || termType === 'NEXT_TIME_BLOCK') ? 3 : 2;
+        const hasSetpoint = settingPower === 'ON' ? (settingTempC != null ? 1 : 0) : 0;
+        const ovrTemp = settingPower === 'ON' ? settingTempC : null;
+        await db.insertMergedZoneMeasurement(homeId, zoneId, {
+            '0x6240': settingPower === 'ON' ? overlayMode : 1,
+            '0x6260': hasSetpoint,
+            '0x6280': ovrTemp,
+            '0x6440': termType === 'TIMER' ? 1 : null
+        }).catch(err => _log('warn', `Failed to sync merged zone measurement on overlay: ${err.message}`));
+
         await commandApi.pushZoneOverlay(homeId, zoneId, setting, resolvedTermination).catch(err => {
             _log('warn', `Failed to push overlay to devices for Zone ${zoneId}: ${err.message}`);
         });
@@ -496,6 +506,13 @@ async function applyOverlay(homeId, zoneId, setting, termination, pool) {
 
 async function removeOverlay(homeId, zoneId, pool) {
     await pool.execute('DELETE FROM zone_overlays WHERE zone_id = ? AND home_id = ?', [zoneId, homeId]);
+
+    await db.insertMergedZoneMeasurement(homeId, zoneId, {
+        '0x6240': 0,
+        '0x6260': 0,
+        '0x6280': null,
+        '0x6440': null
+    }).catch(err => _log('warn', `Failed to reset merged zone measurement on overlay delete: ${err.message}`));
 
     await commandApi.pushZoneOverlayDelete(homeId, zoneId).catch(err => {
         _log('warn', `Failed to push overlay deletion to devices for Zone ${zoneId}: ${err.message}`);
