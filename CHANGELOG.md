@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-21
+
+- fix: more critical issues in device/zone/circuit config generation/processing and wireless sensor emulator
+- feat: Improve SSE for concurrency
+- fix: fix critical issue that prevents producing valid configs
+- security: block access to commandApi from remote sources
+- fix: set modulePreload to false in frontend-new
+- fix: config generation
+
 ## [0.3.4] - 2026-09-20
 
 - fix: fix issues found after audit based improvements
