@@ -9,6 +9,7 @@
 #include <esphome/core/log.h>
 
 #include <cmath>
+#include <algorithm>
 
 namespace esphome {
 namespace tado_emulator {
@@ -42,7 +43,7 @@ void RUStateMachine::trigger_telemetry(float temp_c, float hum_pct, uint16_t bat
                    (now_s > config_.last_zp_tx_ts && (now_s - config_.last_zp_tx_ts >= 60)) ||
                    (std::fabs(temp_c - config_.last_reported_temp) >= 0.05f);
     if (need_zp) {
-      std::vector<uint8_t> z_tlv = protocol::build_z_p_tlv(temp_c, hum_pct);
+      std::vector<uint8_t> z_tlv = protocol::build_z_p_tlv(temp_c, hum_pct, config_.current_demand_percent);
       OutboundFrame z_frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_PUT, "z/p",
                                                         z_tlv.data(), z_tlv.size(), config_.ib_mac);
       if (!z_frame.empty()) {
@@ -148,6 +149,17 @@ void RUStateMachine::tick(uint32_t now_ms, uint32_t now_s, std::vector<OutboundF
 
   // 1. Operational State: Autonomous heartbeats & Hourly maintenance burst
   if (config_.state == STATE_OPERATIONAL) {
+    // Firmware-true startup sync on boot / wake
+    if (!config_.boot_sync_done && config_.ib_mac_known) {
+      config_.boot_sync_done = true;
+      std::string cfg_path = "d/" + config_.serial_no + "/config";
+      ESP_LOGI(TAG, "[%s] Boot/wake: triggering startup device config sync -> GET %s",
+               config_.serial_no.c_str(), cfg_path.c_str());
+      OutboundFrame cfg_frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_GET, cfg_path,
+                                                           nullptr, 0, config_.ib_mac);
+      if (!cfg_frame.empty()) outbound_frames.push_back(std::move(cfg_frame));
+    }
+
     // Autonomous zone measurement heartbeat (~600s / 10m for measuring leader)
     // Suppressed when external telemetry feed is actively driving the device (within 1800s / 30m)
     bool external_active = (config_.last_external_telemetry_ts > 0 &&
@@ -161,7 +173,7 @@ void RUStateMachine::tick(uint32_t now_ms, uint32_t now_s, std::vector<OutboundF
         config_.last_zp_tx_ts = now_s;
         config_.last_telemetry_ts = now_s;
         config_.last_reported_temp = config_.target_temp_celsius;
-        std::vector<uint8_t> z_tlv = protocol::build_z_p_tlv(config_.target_temp_celsius, config_.target_humidity_pct);
+        std::vector<uint8_t> z_tlv = protocol::build_z_p_tlv(config_.target_temp_celsius, config_.target_humidity_pct, config_.current_demand_percent);
         OutboundFrame z_frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_PUT, "z/p",
                                                           z_tlv.data(), z_tlv.size(), config_.ib_mac);
         if (!z_frame.empty()) outbound_frames.push_back(std::move(z_frame));
@@ -409,8 +421,13 @@ void RUStateMachine::process_inbound_decrypted(const ParsedMac &mac, const uint8
   }
 
   // 4. Unrecognized or unparsed payload
-  ESP_LOGD(TAG, "[%s] RX Decrypted frame unhandled (len=%u, d3=0x%02X, d8=0x%02X)",
-           config_.serial_no.c_str(), (unsigned)len, len > 3 ? decrypted[3] : 0, len > 8 ? decrypted[8] : 0);
+  char hex_buf[180];
+  size_t hlen = 0;
+  for (size_t i = 0; i < len && hlen + 4 < sizeof(hex_buf); i++) {
+    hlen += snprintf(hex_buf + hlen, sizeof(hex_buf) - hlen, "%02X ", decrypted[i]);
+  }
+  ESP_LOGD(TAG, "[%s] RX Decrypted frame unhandled (len=%u): %s",
+           config_.serial_no.c_str(), (unsigned)len, hex_buf);
 }
 
 void RUStateMachine::handle_fragment(const ParsedMac &mac, const uint8_t *decrypted, size_t len,
@@ -805,10 +822,75 @@ void RUStateMachine::handle_coap_message(const ParsedCoAP &coap, const ParsedMac
         begin_onboarding(outbound_frames);
       }
     }
-    // Also handle GET /d/{serial}/config response during onboarding
-    if (config_.state == STATE_ONBOARD_CONFIG) {
-      // Config received, advance to actuator state
-      advance_onboarding(outbound_frames);
+    // Handle GET /d/{serial}/config response (during onboarding or operational sync)
+    if (config_.state == STATE_ONBOARD_CONFIG ||
+        (coap.uri_path.find("/config") != std::string::npos && coap.uri_path.rfind("d/", 0) == 0)) {
+      auto tlvs = protocol::parse_tlvs(coap.payload.data(), coap.payload.size());
+      for (const auto &t : tlvs) {
+        if (t.tag == TLV_ZONE_BINDING_015E && t.value.size() >= 2) {
+          config_.zone_role = t.value[0];
+          config_.zone_id = t.value[1];
+          config_.is_measuring_leader = (config_.zone_id != 0 && ((config_.zone_role & 0x08) != 0));
+        } else if (t.tag == TLV_HOME_ID_015C && t.value.size() >= 4) {
+          config_.home_id = ((uint32_t)t.value[0] << 24) | ((uint32_t)t.value[1] << 16) |
+                            ((uint32_t)t.value[2] << 8) | (uint32_t)t.value[3];
+        } else if (t.tag == TLV_TEMPERATURE_OFFSET_0140 && t.value.size() >= 2) {
+          config_.temp_offset_raw = (int16_t)((t.value[0] << 8) | t.value[1]);
+        }
+      }
+      if (config_.state == STATE_ONBOARD_CONFIG) {
+        advance_onboarding(outbound_frames);
+      } else if (config_.home_id > 0 && config_.zone_id > 0) {
+        config_.zone_config_block = 0;
+        std::string z_cfg_path = "h/" + std::to_string(config_.home_id) + "/z/" + std::to_string(config_.zone_id) + "/config";
+        ESP_LOGI(TAG, "[%s] Operational sync: device config received -> requesting %s (block 0)",
+                 config_.serial_no.c_str(), z_cfg_path.c_str());
+        OutboundFrame frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_GET,
+                                                        z_cfg_path,
+                                                        nullptr, 0, config_.ib_mac,
+                                                        0, 3);
+        if (!frame.empty()) outbound_frames.push_back(std::move(frame));
+      }
+      return;
+    }
+
+    // Handle incoming zone config response blocks
+    if (coap.code == COAP_CODE_CONTENT && coap.uri_path.find("/config") != std::string::npos &&
+        (coap.uri_path.rfind("h/", 0) == 0 || coap.uri_path.rfind("z/", 0) == 0)) {
+      bool has_block2 = false;
+      uint32_t b2_num = 0;
+      bool b2_more = false;
+      uint8_t b2_szx = 3;
+      for (const auto &opt : coap.options) {
+        if (opt.num == COAP_OPT_BLOCK2 && !opt.value.empty()) {
+          has_block2 = true;
+          uint32_t b2_val = 0;
+          for (uint8_t b : opt.value) b2_val = (b2_val << 8) | b;
+          b2_num = b2_val >> 4;
+          b2_more = (b2_val >> 3) & 1;
+          b2_szx = b2_val & 7;
+          break;
+        }
+      }
+
+      if (has_block2 && b2_more) {
+        config_.zone_config_block = b2_num + 1;
+        std::string z_cfg_path = "h/" + std::to_string(config_.home_id) + "/z/" + std::to_string(config_.zone_id) + "/config";
+        ESP_LOGI(TAG, "[%s] Zone config block %lu received (more=1) -> requesting block %lu",
+                 config_.serial_no.c_str(), (unsigned long)b2_num, (unsigned long)config_.zone_config_block);
+        OutboundFrame frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_GET,
+                                                        z_cfg_path,
+                                                        nullptr, 0, config_.ib_mac,
+                                                        config_.zone_config_block, b2_szx);
+        if (!frame.empty()) outbound_frames.push_back(std::move(frame));
+        return;
+      } else {
+        ESP_LOGI(TAG, "[%s] Zone config complete (last block %lu)", config_.serial_no.c_str(), (unsigned long)b2_num);
+        if (config_.state == STATE_ONBOARD_ZONE_CONFIG) {
+          advance_onboarding(outbound_frames);
+          return;
+        }
+      }
     }
     return;
   }
@@ -886,6 +968,17 @@ void RUStateMachine::handle_coap_message(const ParsedCoAP &coap, const ParsedMac
     emit_coap_ack_response(COAP_CODE_CHANGED, coap, mac, rx_key, nullptr, 0, outbound_frames);
     ESP_LOGI(TAG, "[%s] Updated from PUT /d/config: zone_id=%lu, role=0x%02X, home_id=%lu, replied 2.04 Changed",
              config_.serial_no.c_str(), (unsigned long)config_.zone_id, config_.zone_role, (unsigned long)config_.home_id);
+
+    if (config_.home_id > 0 && config_.zone_id > 0) {
+      config_.zone_config_block = 0;
+      std::string z_cfg_path = "h/" + std::to_string(config_.home_id) + "/z/" + std::to_string(config_.zone_id) + "/config";
+      ESP_LOGI(TAG, "[%s] Triggering GET %s (block 0)", config_.serial_no.c_str(), z_cfg_path.c_str());
+      OutboundFrame frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_GET,
+                                                      z_cfg_path,
+                                                      nullptr, 0, config_.ib_mac,
+                                                      0, 3);
+      if (!frame.empty()) outbound_frames.push_back(std::move(frame));
+    }
     return;
   }
 
@@ -917,7 +1010,7 @@ void RUStateMachine::handle_coap_message(const ParsedCoAP &coap, const ParsedMac
   // Case 9: Inbound GET or PUT /z/p (Zone Telemetry Query or Update)
   if (coap.uri_path == "z/p" || coap.uri_path.rfind("z/p", 0) == 0) {
     if (coap.code == COAP_CODE_GET) {
-      std::vector<uint8_t> zp_tlv = protocol::build_z_p_tlv(config_.target_temp_celsius, config_.target_humidity_pct);
+      std::vector<uint8_t> zp_tlv = protocol::build_z_p_tlv(config_.target_temp_celsius, config_.target_humidity_pct, config_.current_demand_percent);
       emit_coap_ack_response(COAP_CODE_CONTENT, coap, mac, rx_key, zp_tlv.data(), zp_tlv.size(), outbound_frames);
       ESP_LOGI(TAG, "[%s] Responded to GET /z/p with temp=%.2f hum=%.1f",
                config_.serial_no.c_str(), config_.target_temp_celsius, config_.target_humidity_pct);
@@ -950,11 +1043,47 @@ void RUStateMachine::handle_coap_message(const ParsedCoAP &coap, const ParsedMac
 
   // Case 11: Inbound PUT /z/s (Zone Setpoint Update)
   if (coap.code == COAP_CODE_PUT && (coap.uri_path == "z/s" || coap.uri_path.rfind("z/s", 0) == 0)) {
-    // Pure wireless sensor has no actuator/relay to control zone setpoint:
-    // Reject PUT /z/s with 4.02 Bad Option (matching genuine RU firmware)
-    emit_coap_ack_response(COAP_CODE_BAD_OPTION, coap, mac, rx_key, nullptr, 0, outbound_frames);
-    ESP_LOGI(TAG, "[%s] Rejected PUT /z/s with 4.02 Bad Option (wireless sensor mode)",
-             config_.serial_no.c_str());
+    auto tlvs = protocol::parse_tlvs(coap.payload.data(), coap.payload.size());
+    for (const auto &t : tlvs) {
+      if ((t.tag == TLV_ZONE_TARGET_TEMP_6200 || t.tag == TLV_ZONE_OVERLAY_TEMP_6280) && t.value.size() >= 2) {
+        int16_t raw_sp = (int16_t)((t.value[0] << 8) | t.value[1]);
+        config_.setpoint_temp_celsius = raw_sp / 100.0f;
+      } else if (t.tag == TLV_ZONE_OVERLAY_MODE_6240 && t.value.size() >= 2) {
+        config_.zone_mode = (t.value[0] << 8) | t.value[1];
+      }
+    }
+
+    emit_coap_ack_response(COAP_CODE_CHANGED, coap, mac, rx_key, nullptr, 0, outbound_frames);
+    ESP_LOGI(TAG, "[%s] Processed PUT /z/s: mode=%d setpoint=%.2fC -> replied 2.04 Changed",
+             config_.serial_no.c_str(), config_.zone_mode, config_.setpoint_temp_celsius);
+
+    // Demand calculation: error = setpoint - current_temp
+    float error = config_.setpoint_temp_celsius - config_.target_temp_celsius;
+    uint8_t demand = 0;
+    if (error > -0.3f) {
+      if (error >= 2.0f) {
+        demand = 100;
+      } else {
+        demand = (uint8_t)std::max(0.0f, std::min(100.0f, std::round(10.0f + error * 45.0f)));
+      }
+    }
+    config_.current_demand_percent = demand;
+
+    // Trigger immediate updates: /h/{home_id}/z/{zone_id}/act and /z/p
+    if (config_.home_id > 0 && config_.zone_id > 0) {
+      std::string act_path = "h/" + std::to_string(config_.home_id) + "/z/" + std::to_string(config_.zone_id) + "/act";
+      std::vector<uint8_t> act_tlv = protocol::build_z_act_tlv(demand);
+      OutboundFrame act_frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_PUT, act_path,
+                                                          act_tlv.data(), act_tlv.size(), config_.ib_mac);
+      if (!act_frame.empty()) outbound_frames.push_back(std::move(act_frame));
+    }
+
+    if (config_.is_measuring_leader) {
+      std::vector<uint8_t> zp_tlv = protocol::build_z_p_tlv(config_.target_temp_celsius, config_.target_humidity_pct, config_.current_demand_percent);
+      OutboundFrame zp_frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_PUT, "z/p",
+                                                          zp_tlv.data(), zp_tlv.size(), config_.ib_mac);
+      if (!zp_frame.empty()) outbound_frames.push_back(std::move(zp_frame));
+    }
     return;
   }
 
@@ -1115,9 +1244,33 @@ void RUStateMachine::advance_onboarding(std::vector<OutboundFrame> &outbound_fra
       break;
     }
     case STATE_ONBOARD_CONFIG: {
-      // config response received → PUT /d/{serial}/act
+      // config response received: if zone_id and home_id known, fetch zone config!
+      if (config_.home_id > 0 && config_.zone_id > 0) {
+        config_.state = STATE_ONBOARD_ZONE_CONFIG;
+        config_.zone_config_block = 0;
+        std::string z_cfg_path = "h/" + std::to_string(config_.home_id) + "/z/" + std::to_string(config_.zone_id) + "/config";
+        ESP_LOGI(TAG, "[%s] Onboard: config received -> GET %s (block 0)", config_.serial_no.c_str(), z_cfg_path.c_str());
+        OutboundFrame frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_GET,
+                                                        z_cfg_path,
+                                                        nullptr, 0, config_.ib_mac,
+                                                        0, 3);
+        if (!frame.empty()) outbound_frames.push_back(std::move(frame));
+        break;
+      }
       config_.state = STATE_ONBOARD_ACT;
-      ESP_LOGI(TAG, "[%s] Onboard: config received → PUT act", config_.serial_no.c_str());
+      ESP_LOGI(TAG, "[%s] Onboard: config received -> PUT act", config_.serial_no.c_str());
+      std::vector<uint8_t> act_tlv;
+      protocol::append_tlv_u8(act_tlv, TLV_ACTUATOR_ACTIVE, 0);
+      OutboundFrame frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_PUT,
+                                                      base_path + "/act",
+                                                      act_tlv.data(), act_tlv.size(), config_.ib_mac);
+      if (!frame.empty()) outbound_frames.push_back(std::move(frame));
+      break;
+    }
+    case STATE_ONBOARD_ZONE_CONFIG: {
+      // Zone config finished -> advance to act
+      config_.state = STATE_ONBOARD_ACT;
+      ESP_LOGI(TAG, "[%s] Onboard: zone config complete -> PUT act", config_.serial_no.c_str());
       std::vector<uint8_t> act_tlv;
       protocol::append_tlv_u8(act_tlv, TLV_ACTUATOR_ACTIVE, 0);
       OutboundFrame frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_PUT,

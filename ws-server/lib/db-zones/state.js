@@ -37,6 +37,40 @@ const getHomeState = dbHomes.getHomeState;
 
 const { getZoneScheduleState } = require('./schedule');
 
+async function applyActiveOverlayToResult(homeId, zoneId, result, p) {
+    try {
+        const [ovRows] = await p.execute(
+            'SELECT * FROM zone_overlays WHERE zone_id = ? AND home_id = ?',
+            [zoneId, homeId]
+        );
+        if (ovRows.length > 0) {
+            const ov = ovRows[0];
+            const isExpired = ov.termination_expiry && new Date(ov.termination_expiry).getTime() <= Date.now();
+            if (!isExpired) {
+                const isTimerOrBlock = ov.termination_type === 'TIMER' || ov.termination_type === 'NEXT_TIME_BLOCK';
+                if (ov.setting_power === 'ON') {
+                    result['0x6240'] = isTimerOrBlock ? 3 : 2;
+                    result['0x6260'] = 1;
+                    result['0x6280'] = ov.setting_temp_celsius != null ? parseFloat(ov.setting_temp_celsius) : (result['0x6200'] ?? 20);
+                    if (ov.termination_type === 'TIMER') {
+                        result['0x6440'] = 1;
+                    }
+                } else {
+                    result['0x6240'] = 1;
+                    result['0x6260'] = 0;
+                    result['0x6280'] = null;
+                }
+                result.field_6240 = result['0x6240'];
+                result.field_6260 = result['0x6260'];
+                result.field_6280 = result['0x6280'];
+                if (result['0x6440'] !== undefined) result.field_6440 = result['0x6440'];
+            }
+        }
+    } catch (err) {
+        _log('warn', `Failed to apply overlay to zone state for Z:${zoneId}: ${err.message}`);
+    }
+}
+
 async function getZoneState(homeId, zoneId) {
     if (!homeId) throw new Error('homeId is required for getZoneState');
     const p = getPool();
@@ -76,6 +110,8 @@ async function getZoneState(homeId, zoneId) {
     result.field_6260 = result['0x6260'];
     result.field_62e0 = result['0x62e0'];
     result.field_6440 = result['0x6440'];
+
+    await applyActiveOverlayToResult(homeId, zoneId, result, p);
 
     return result;
 }
@@ -123,6 +159,7 @@ async function getZoneStateFallback(homeId, zoneId) {
         result.field_6280 = result['0x6280'];
         result.field_6260 = result['0x6260'];
         result.field_62e0 = result['0x62e0'];
+        await applyActiveOverlayToResult(actualHomeId, zoneId, result, p);
         return result;
     }
 
@@ -147,6 +184,7 @@ async function getZoneStateFallback(homeId, zoneId) {
     result.field_6280 = result['0x6280'];
     result.field_6260 = result['0x6260'];
     result.field_62e0 = result['0x62e0'];
+    await applyActiveOverlayToResult(actualHomeId, zoneId, result, p);
     return result;
 }
 
@@ -383,7 +421,8 @@ async function updateLastConfigJsonFromLive(serial, decodedFields, etag) {
 
     let mergedConfig = safeJsonParse(dbDev.last_config_json);
     Object.assign(mergedConfig, decodedFields);
-    mergedConfig = cleanFriendlyConfig(mergedConfig);
+    const { sortConfigFields } = require('../db-utils');
+    mergedConfig = sortConfigFields(cleanFriendlyConfig(mergedConfig));
 
     const tempOffset = decodedFields['0x0140'] ?? decodedFields.field_0140;
     const rawOrient = decodedFields['0x0149'] ?? decodedFields.config_field_0149 ?? decodedFields.va_orientation ?? decodedFields.field_0149;

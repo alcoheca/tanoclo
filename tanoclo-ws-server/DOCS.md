@@ -57,7 +57,7 @@ During the firmware patching process, a cloned Root CA key is used to sign a lea
 ---
 
 ### 2. DNS Redirection Configuration (AdGuard Home or Pi-Hole)
-Your network must be setup (using DHCP) such that the Internet Bridge and clients can resolve the TaNoClo domain (`tanoclo.tado.lan`) to the IP address of your Home Assistant host machine. If you want to access the TaNoClo frontend externally you should also setup your edge router to handle this (outside of the scope of this guide).
+Your network must be setup (using DHCP) such that the Internet Bridge and clients can resolve the TaNoClo domain (`tanoclo.tado.lan`) to the IP address of your Home Assistant host machine.
 
 #### Option A: AdGuard Home
 1. Open the **AdGuard Home** UI.

@@ -146,6 +146,11 @@ async function persistCapturedConfig(displayPath, decoded, activeDeviceId, captu
 
 async function captureDownlinkConfig(coapMsg, displayPath, activeDeviceId, pathInfo) {
     if (displayPath && (displayPath.endsWith('config') || displayPath.endsWith('hvac'))) {
+        const isBlock2 = coapMsg.options && coapMsg.options.some(opt => opt.num === coap.OPT_BLOCK2 || opt.num === 23);
+        if (isBlock2) {
+            log('debug', `PROXY: Skipping config TLV decode on partial Block2 fragment for ${displayPath}`);
+            return;
+        }
         log('info', `PROXY: Captured config response for ${displayPath} (${activeDeviceId})`);
         const decoded = await workerPool.tlvDecode(coapMsg.payload);
         if (decoded.ok) {

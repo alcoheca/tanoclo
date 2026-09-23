@@ -104,6 +104,8 @@ enum TLVTag : uint16_t {
   TLV_ZONE_ID_6020 = 0x6020,
   TLV_ZONE_MODE_6160 = 0x6160,
   TLV_ZONE_TARGET_TEMP_6200 = 0x6200,
+  TLV_ZONE_OVERLAY_MODE_6240 = 0x6240,
+  TLV_ZONE_OVERLAY_TEMP_6280 = 0x6280,
   TLV_DEVICE_FLAG_0143 = 0x0143,
   TLV_TEMPERATURE_OFFSET_0140 = 0x0140,
   TLV_DEVICE_TYPE_015D = 0x015d,
@@ -237,7 +239,8 @@ bool tlv_lookup_2byte_field(const uint8_t *data, size_t len, uint16_t tag, std::
 // Specialized High-Level TLV Builders
 std::vector<uint8_t> build_d_sen_tlv(float temp_c, float hum_pct, uint16_t battery_mv,
                                     uint16_t light_adc = 6249, uint16_t ot_volt_mv = 0, uint8_t status_flags = 0);
-std::vector<uint8_t> build_z_p_tlv(float temp_c, float hum_pct);
+std::vector<uint8_t> build_z_p_tlv(float temp_c, float hum_pct, uint8_t demand_pct = 0);
+std::vector<uint8_t> build_z_act_tlv(uint8_t demand_pct);
 std::vector<uint8_t> build_d_lock_tlv(bool locked);
 std::vector<uint8_t> build_d_fw_state_tlv(uint16_t fw_version = 13762, uint16_t other_slot = 13059,
                                          const std::string &build_id = "c54baf8");

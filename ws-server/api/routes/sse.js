@@ -88,10 +88,10 @@ async function sseAuth(req, res, next) {
     }
 }
 
-// Rate limiter for SSE ticket requests (10 per minute per IP)
+// Rate limiter for SSE ticket requests (60 per minute per IP)
 const sseLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 10,
+    max: 60,
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false },

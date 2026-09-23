@@ -249,7 +249,8 @@ async function updateDeviceConfig(serial, fields, fullConfigJson) {
         }
     }
 
-    mergedConfig = cleanFriendlyConfig(mergedConfig);
+    const { sortConfigFields } = require('./db-utils');
+    mergedConfig = sortConfigFields(cleanFriendlyConfig(mergedConfig));
 
     const updates = ['last_config_json=?'];
     const params = [JSON.stringify(mergedConfig)];
