@@ -112,6 +112,13 @@ assert_file_size $INPUT_BIN $FLASH_SIZE
 init
 reset halt
 
+# Optional: SPI_SLOW=1 divides APB2 by 16 (RCC_CFGR.PPRE2=0b111), dropping the stub's SPI1
+# clock from ~500 kHz to ~31 kHz. Use it if dump_external_flash.tcl only reads reliably with it.
+if {[info exists ::env(SPI_SLOW)] && $::env(SPI_SLOW) == "1"} {
+    mww 0x40023808 0x0000E000
+    puts "OpenOCD program_external_flash - SPI_SLOW=1: APB2 prescaler set to /16 (SPI ~31 kHz)"
+}
+
 # Load stub into RAM and set stack
 load_image $STUB_ELF
 reg sp 0x20020000

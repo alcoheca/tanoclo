@@ -241,7 +241,7 @@ Non-zero counters mean the retries had to work for it — re-seat the clip. Befo
 ./read.sh && cp unmodded_spi.bin spi_a.bin && ./read.sh && cmp unmodded_spi.bin spi_a.bin && echo IDENTICAL
 ```
 
-After flashing, run `./read.sh` again and `cmp` the dumps against `out/IB-patched-ca-endpoint-crc.bin` and `out/IB-SPI-patched-ca-endpoint.bin`; a clean match is the definitive proof that both chips hold exactly the intended images. Setting `SPI_SLOW=1` in the environment runs the stub's SPI clock at ~31 kHz instead of ~500 kHz, which helps distinguish a loading/rise-time problem (errors disappear) from bus contention (errors persist).
+After flashing, run `./read.sh` again and `cmp` the dumps against `out/IB-patched-ca-endpoint-crc.bin` and `out/IB-SPI-patched-ca-endpoint.bin`; a clean match is the definitive proof that both chips hold exactly the intended images. Setting `SPI_SLOW=1` in the environment (honoured by both `read.sh` and `flash.sh`) runs the stub's SPI clock at ~31 kHz instead of ~500 kHz, which helps distinguish a loading/rise-time problem (errors disappear) from bus contention (errors persist).
 
 > [!WARNING]
 > Do not power the bridge from its own USB supply while dumping or flashing. Besides the double-supply risk noted above, a fully powered board brings up the radio and Ethernet controller before OpenOCD resets the STM32, after which their chip-selects float and they can drive MISO — the stub then fails its JEDEC ID check (`status 0xEE`). Power the board from the ST-Link's 3V3 pin only.

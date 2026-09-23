@@ -289,7 +289,7 @@ extracted_ca_cer="out/tadoRootCA.cer"
 extracted_ca_der="out/tadoRootCA.der"
 
 if [[ -f "$extracted_ca_cer" && -f "$extracted_ca_der" ]]; then
-  cer_hash=$(sha256sum "$extracted_ca_der" | awk '{print $1}' | tr -d ' ' | tr 'A-Z' 'a-z')
+  cer_hash=$(openssl dgst -sha256 -r "$extracted_ca_der" | awk '{print $1}')
   if [[ "$cer_hash" == "$original_root_ca_sha" ]]; then
     echo "Read Patch Flash - Extracted RootCA matches original Tado RootCA. Writing true unmodded backups to original directory."
     mkdir -p original
