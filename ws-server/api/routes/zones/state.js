@@ -12,6 +12,7 @@ const { getLogger } = require('../../../lib/logger');
 const commandApi = require('../../../lib/command-api');
 const { mapDevice } = require('../../../lib/mappers');
 const { parseUtcDate, getLocalParts, parseLocalTimeInTimezone, getDayBoundsInTimezone } = require('../../../lib/utils');
+const { overlayModeFor } = require('../../../lib/overlay-codes');
 const {
     checkZoneConfigReadonly,
     formatDate,
@@ -478,11 +479,10 @@ async function applyOverlay(homeId, zoneId, setting, termination, pool) {
             [zoneId, homeId, settingType, settingPower, settingTempC, settingTempF, termType, termDuration, termExpiry]
         );
 
-        const overlayMode = (termType === 'TIMER' || termType === 'NEXT_TIME_BLOCK') ? 3 : 2;
         const hasSetpoint = settingPower === 'ON' ? (settingTempC != null ? 1 : 0) : 0;
         const ovrTemp = settingPower === 'ON' ? settingTempC : null;
         await db.insertMergedZoneMeasurement(homeId, zoneId, {
-            '0x6240': settingPower === 'ON' ? overlayMode : 1,
+            '0x6240': overlayModeFor({ power: settingPower, terminationType: termType, isHotWater: false }),
             '0x6260': hasSetpoint,
             '0x6280': ovrTemp,
             '0x6440': termType === 'TIMER' ? 1 : null

@@ -5,6 +5,8 @@
 
 'use strict';
 
+const { PRESET_MODES } = require('../overlay-codes');
+
 function buildZoneDiscovery(publishEntity, zones, config) {
     for (const zone of zones) {
         // Unpublish old non-home-unique entities to clean up Home Assistant
@@ -61,7 +63,7 @@ function buildZoneDiscovery(publishEntity, zones, config) {
                 preset_mode_state_topic: `tado/tanoclo/h/${zone.home_id}/z/${zone.id}/preset_mode`,
                 action_topic: `tado/tanoclo/h/${zone.home_id}/z/${zone.id}/hvac_action`,
                 modes: ['auto', 'heat', 'off'],
-                preset_modes: ['SCHEDULE', 'TIMER', 'NEXT_BLOCK', 'MANUAL'],
+                preset_modes: [...PRESET_MODES],
                 min_temp: isHotWater ? 30.0 : 5.0,
                 max_temp: isHotWater ? 65.0 : 25.0,
                 temp_step: isHotWater ? 1.0 : 0.5,

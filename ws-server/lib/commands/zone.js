@@ -10,6 +10,7 @@ const tlv = require('../tlv');
 const crypto = require('crypto');
 const { getNextMid } = require('../coap-transport');
 const api = require('../command-api');
+const { overlayModeFor } = require('../overlay-codes');
 
 async function handleZoneOverlay(req, res, homeId, zoneId) {
     const body = (req.body || {});
@@ -61,16 +62,12 @@ async function pushZoneOverlay(homeId, zoneId, setting, termination) {
         }
     }
 
-    if (resolvedTermination) {
-        const type = resolvedTermination.typeSkillBasedApp || resolvedTermination.type;
-        if (type === 'NEXT_TIME_BLOCK' || type === 'TIMER') {
-            mode = 3;
-        } else {
-            mode = 2;
-        }
-    } else {
-        mode = 2;
-    }
+    const terminationType = resolvedTermination ? (resolvedTermination.typeSkillBasedApp || resolvedTermination.type) : null;
+    mode = overlayModeFor({
+        power: setting.power,
+        terminationType,
+        isHotWater: !zone || zone.type === 'HOT_WATER'
+    });
 
     if (setting.power === 'ON') {
         if (setting.temperature) {
@@ -80,9 +77,6 @@ async function pushZoneOverlay(homeId, zoneId, setting, termination) {
     } else {
         hasSetpoint = 0;
         temp = undefined;
-        if (zone && zone.type !== 'HOT_WATER') {
-            mode = 1;
-        }
     }
 
     const tlvPayload = {

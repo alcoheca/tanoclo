@@ -9,6 +9,7 @@ const db = require('./db');
 const { getLogger } = require('./logger');
 const log = getLogger('state-restore');
 const commandApi = require('./command-api');
+const { OVERLAY_MODE } = require('./overlay-codes');
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -90,7 +91,7 @@ async function restoreSnapshot(homeId, snapshotId) {
                     const fields = zoneData.state.fields;
                     const overlayMode = fields['0x6240'];
 
-                    if (overlayMode === 0 || overlayMode === undefined || overlayMode === null) {
+                    if (overlayMode === OVERLAY_MODE.SCHEDULE || overlayMode === undefined || overlayMode === null) {
                         await commandApi.pushZoneOverlayDelete(homeId, parseInt(zoneId));
                     } else {
                         let setting = { power: 'ON' };
@@ -101,7 +102,7 @@ async function restoreSnapshot(homeId, snapshotId) {
                         }
 
                         let termination = { type: 'MANUAL', typeSkillBasedApp: 'MANUAL' };
-                        if (overlayMode === 3) {
+                        if (overlayMode === OVERLAY_MODE.TIMED) {
                             termination = { type: 'NEXT_TIME_BLOCK', typeSkillBasedApp: 'NEXT_TIME_BLOCK' };
                         }
                         await commandApi.pushZoneOverlay(homeId, parseInt(zoneId), setting, termination);

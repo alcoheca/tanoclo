@@ -7,6 +7,7 @@
 
 const battery = require('./battery');
 const geoUtils = require('./geo-utils');
+const { describeOverlay } = require('./overlay-codes');
 
 let mqttClient = null;
 let db = null;
@@ -374,15 +375,8 @@ async function publishZoneStateTelemetry(homeId, zoneId, fields, zoneRow = null)
     _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/tado_mode`, tadoMode);
 
     if (presenceVal !== undefined) {
+        // Presence goes on its own topic. The climate preset_mode topic is reserved for the overlay type.
         _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/home_away`, Number(presenceVal) === 1 ? 'HOME' : 'AWAY');
-        let presetMode = Number(presenceVal) === 1 ? 'home' : 'away';
-        if (db) {
-            const home = await db.getHome(homeId).catch(() => null);
-            if (home && !home.presence_locked) {
-                presetMode = 'auto';
-            }
-        }
-        _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/preset_mode`, presetMode);
     }
 
     if (enabled !== undefined) {
@@ -401,34 +395,19 @@ async function publishZoneStateTelemetry(homeId, zoneId, fields, zoneRow = null)
         // Clear overlay temperature if inactive
         _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/overlay_temperature`, overlayActive ? overlayTemp : '');
 
-        let overlayMode = 'SCHEDULE';
-        if (Number(overlayVal) === 1) overlayMode = 'TIMER';
-        else if (Number(overlayVal) === 2) overlayMode = 'NEXT_BLOCK';
-        else if (Number(overlayVal) === 3) overlayMode = 'MANUAL';
-        _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/overlay_mode`, overlayMode);
-
-        // Publish preset_mode (overlay termination type for climate entity)
-        _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/preset_mode`, overlayMode);
-
-        // Derive hvac_mode: auto (schedule), heat (overlay with power ON), off (overlay with power OFF or zone disabled)
-        let hvacMode = 'auto';
-        if (enabled === 0) {
-            hvacMode = 'off';
-        } else if (overlayActive) {
-            // Check if overlay has power OFF (need DB lookup)
-            let overlayPowerOff = false;
-            if (db) {
-                try {
-                    const [ovrs] = await db.getPool().execute('SELECT setting_power FROM zone_overlays WHERE zone_id = ? AND home_id = ?', [zoneId, homeId]).catch(() => [[]]);
-                    if (ovrs && ovrs.length > 0 && ovrs[0].setting_power === 'OFF') {
-                        overlayPowerOff = true;
-                    }
-                } catch (e) {
-                    if (log) log('debug', `Failed to query overlay for hvac_mode: ${e.message}`);
-                }
+        // Labels come from the overlay row (the numeric code cannot tell a timer from "until next change").
+        let overlayRow = null;
+        if (overlayActive && db) {
+            try {
+                const [ovrs] = await db.getPool().execute('SELECT setting_power, termination_type FROM zone_overlays WHERE zone_id = ? AND home_id = ?', [zoneId, homeId]).catch(() => [[]]);
+                overlayRow = (ovrs && ovrs.length > 0) ? ovrs[0] : null;
+            } catch (e) {
+                if (log) log('debug', `Failed to query overlay for hvac_mode: ${e.message}`);
             }
-            hvacMode = overlayPowerOff ? 'off' : 'heat';
         }
+        const { hvacMode, preset } = describeOverlay({ overlayCode: overlayVal, overlay: overlayRow, zoneEnabled: enabled ?? 1 });
+        _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/overlay_mode`, overlayActive ? preset : 'Schedule');
+        _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/preset_mode`, preset);
         _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/hvac_mode`, hvacMode);
     }
 

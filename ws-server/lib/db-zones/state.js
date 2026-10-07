@@ -13,6 +13,7 @@ const { getPool, _log, safeJsonParse, generateEtag, cleanFriendlyConfig, tadoHas
 const { getDeviceByFullSerial, getDeviceBySerial } = require('../db-devices');
 const tlv = require('../tlv');
 const { getLocalParts, parseLocalTimeInTimezone } = require('../utils');
+const { OVERLAY_MODE, overlayModeFor } = require('../overlay-codes');
 
 const ALLOWED_ZONE_CONFIG_COLS = new Set(['last_config_json', 'config_etag', 'dazzle_enabled', 'field_60a0', 'field_60c0', 'field_6080', 'field_6340']);
 const ALLOWED_ZONE_DEVICE_CONFIG_COLS = new Set(['last_config_json', 'field_0140', 'field_0149', 'field_0158', 'field_015a', 'config_etag']);
@@ -47,16 +48,15 @@ async function applyActiveOverlayToResult(homeId, zoneId, result, p) {
             const ov = ovRows[0];
             const isExpired = ov.termination_expiry && new Date(ov.termination_expiry).getTime() <= Date.now();
             if (!isExpired) {
-                const isTimerOrBlock = ov.termination_type === 'TIMER' || ov.termination_type === 'NEXT_TIME_BLOCK';
                 if (ov.setting_power === 'ON') {
-                    result['0x6240'] = isTimerOrBlock ? 3 : 2;
+                    result['0x6240'] = overlayModeFor({ power: 'ON', terminationType: ov.termination_type });
                     result['0x6260'] = 1;
                     result['0x6280'] = ov.setting_temp_celsius != null ? parseFloat(ov.setting_temp_celsius) : (result['0x6200'] ?? 20);
                     if (ov.termination_type === 'TIMER') {
                         result['0x6440'] = 1;
                     }
                 } else {
-                    result['0x6240'] = 1;
+                    result['0x6240'] = OVERLAY_MODE.OFF;
                     result['0x6260'] = 0;
                     result['0x6280'] = null;
                 }
