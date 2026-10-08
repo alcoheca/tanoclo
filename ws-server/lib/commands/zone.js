@@ -636,18 +636,27 @@ async function pushHomeAway(homeId, isAway) {
         }
 
         const finalEnabled = enabled;
+        // getZoneState already folds the active overlay into the state; a presence change
+        // must not drop it on the valve.
+        const overlayMode = prevState.field_6240 ?? 0;
+        const hasOverlay = overlayMode !== 0;
         const tlvPayload = {
             '0x6160': isAway ? 2 : 1,
             '0x6180': prevState.field_6180 ?? 0,
             '0x6020': zone.type === 'HOT_WATER' ? 2 : 1,
             '0x61e0': finalEnabled,
-            '0x6240': 0,
+            '0x6240': overlayMode,
             '0x62e0': 0,
-            '0x6440': 1
+            '0x6440': hasOverlay ? (prevState.field_6440 || undefined) : 1
         };
 
         if (finalEnabled && temp !== null) {
             tlvPayload['0x6200'] = temp;
+        }
+
+        if (hasOverlay) {
+            tlvPayload['0x6260'] = prevState.field_6260 ?? 0;
+            tlvPayload['0x6280'] = prevState.field_6280 ?? undefined;
         }
 
         Object.keys(tlvPayload).forEach(k => tlvPayload[k] === undefined && delete tlvPayload[k]);
