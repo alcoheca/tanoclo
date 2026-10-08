@@ -23,7 +23,7 @@ RUN echo "building ${BUILD_VERSION}" \
     && git clone --depth 1 --branch deploy/home-0.5.2-fix1 --filter=blob:none --sparse "$REPO_URL" /tmp/repo \
     && cd /tmp/repo \
     && git sparse-checkout set ws-server \
-    && cp -r /tmp/repo/ws-server ./ws-server \
+    && cp -r /tmp/repo/ws-server /app/ws-server \
     && rm -rf /tmp/repo
 
 # Install npm dependencies (production only)

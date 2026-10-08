@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-## [0.5.2-fix1] - 2026-10-08
+## [0.5.2-fix2] - 2026-10-08
 
 Built from the alcoheca fork (`deploy/home-0.5.2-fix1`).
 
