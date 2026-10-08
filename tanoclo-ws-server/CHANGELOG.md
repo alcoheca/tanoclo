@@ -6,9 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-## [0.5.2-fix2] - 2026-10-08
+## [0.5.2-fix3] - 2026-10-08
 
-Built from the alcoheca fork (`deploy/home-0.5.2-fix1`).
+Image built by GitHub Actions in the alcoheca fork (`ghcr.io/alcoheca/tanoclo-ws-server`) and pulled by Home Assistant, instead of being compiled on the device.
 
 - fix(zone): an OFF schedule block no longer becomes a 20 C target (Home/Away push, overlay delete, schedule transition)
 - fix(zone): Home/Away push keeps an active overlay on the valve
