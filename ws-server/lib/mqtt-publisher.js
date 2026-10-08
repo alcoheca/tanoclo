@@ -371,7 +371,10 @@ async function publishZoneStateTelemetry(homeId, zoneId, fields, zoneRow = null)
     const enabled = fields.field_61e0 !== undefined ? fields.field_61e0 : fields['0x61e0'];
     const openWindow = fields.open_window_detected !== undefined ? fields.open_window_detected : fields.open_window_active;
 
-    _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/target_temperature`, target);
+    // While an overlay with a setpoint is active, that setpoint is what the zone is aiming for.
+    // (The HA command path stores it in both fields; the web app path only sets the overlay field.)
+    const overlayHasTemp = Number(overlayVal) > 0 && overlayTemp !== undefined && overlayTemp !== null;
+    _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/target_temperature`, overlayHasTemp ? overlayTemp : target);
     _pub(`${BASE_TOPIC}/h/${homeId}/z/${zoneId}/tado_mode`, tadoMode);
 
     if (presenceVal !== undefined) {
@@ -870,7 +873,23 @@ async function publishMountingState(shortSerial, state) {
     }
 }
 
+/**
+ * Publish a zone's latest stored state to MQTT, for callers that changed the zone outside MQTT
+ * (for example the web app's REST routes) so Home Assistant does not keep showing the old state.
+ */
+async function publishLatestZoneState(homeId, zoneId) {
+    if (!db) return;
+    const [rows] = await db.getPool().execute(
+        'SELECT * FROM zone_measurements WHERE zone_id = ? AND home_id = ? ORDER BY id DESC LIMIT 1',
+        [zoneId, homeId]
+    );
+    if (rows.length === 0) return;
+    await publishZoneStateTelemetry(homeId, zoneId, rows[0]);
+    await publishZoneTelemetry(homeId, zoneId, rows[0]);
+}
+
 module.exports = {
+    publishLatestZoneState,
     init,
     publishFullState,
     publishZoneTelemetry,

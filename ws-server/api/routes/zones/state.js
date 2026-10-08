@@ -13,6 +13,7 @@ const commandApi = require('../../../lib/command-api');
 const { mapDevice } = require('../../../lib/mappers');
 const { parseUtcDate, getLocalParts, parseLocalTimeInTimezone, getDayBoundsInTimezone } = require('../../../lib/utils');
 const { overlayModeFor } = require('../../../lib/overlay-codes');
+const mqttPublisher = require('../../../lib/mqtt-publisher');
 const {
     checkZoneConfigReadonly,
     formatDate,
@@ -498,6 +499,10 @@ async function applyOverlay(homeId, zoneId, setting, termination, pool) {
         } catch (sseErr) {
             _log('warn', `Failed to broadcast zone-state SSE for Zone ${zoneId}: ${sseErr.message}`);
         }
+
+        await mqttPublisher.publishLatestZoneState(homeId, zoneId).catch(err => {
+            _log('warn', `Failed to publish zone state to MQTT for Zone ${zoneId}: ${err.message}`);
+        });
     } catch (err) {
         _log('error', `[zones-api] applyOverlay failed for Zone ${zoneId}: ${err.message}`);
         throw err;
@@ -524,6 +529,10 @@ async function removeOverlay(homeId, zoneId, pool) {
     } catch (sseErr) {
         _log('warn', `Failed to broadcast zone-state SSE for Zone ${zoneId}: ${sseErr.message}`);
     }
+
+    await mqttPublisher.publishLatestZoneState(homeId, zoneId).catch(err => {
+        _log('warn', `Failed to publish zone state to MQTT for Zone ${zoneId}: ${err.message}`);
+    });
 }
 
 module.exports = router;

@@ -102,8 +102,11 @@ describe('MQTT publisher shows the overlay as Home Assistant labels', () => {
     const published = [];
     let overlayRow = null;
 
+    let measurementRows = [];
     const mockDb = {
-        getPool: () => ({ execute: async () => [overlayRow ? [overlayRow] : []] }),
+        getPool: () => ({
+            execute: async (sql) => (String(sql).includes('zone_measurements') ? [measurementRows] : [overlayRow ? [overlayRow] : []]),
+        }),
         getZoneType: async () => 'HEATING',
         getHome: async () => ({ presence_locked: 0 }),
     };
@@ -154,6 +157,34 @@ describe('MQTT publisher shows the overlay as Home Assistant labels', () => {
         const r = await publish({ field_6240: 1, field_61e0: 1 }, { setting_power: 'OFF', termination_type: 'TIMER' });
         assert.strictEqual(r.last('hvac_mode'), 'off');
         assert.strictEqual(r.last('preset_mode'), 'For a set time');
+    });
+
+    test('while an overlay with a setpoint is active, that setpoint is the published target', async () => {
+        const r = await publish({ field_6240: 2, field_61e0: 1, field_6200: 19, field_6280: 21 }, { setting_power: 'ON', termination_type: 'MANUAL' });
+        assert.strictEqual(r.last('target_temperature'), '21');
+        const s = await publish({ field_6240: 0, field_61e0: 1, field_6200: 19, field_6280: null });
+        assert.strictEqual(s.last('target_temperature'), '19');
+    });
+
+    test('publishLatestZoneState publishes the stored state so HA follows web app changes', async () => {
+        published.length = 0;
+        overlayRow = { setting_power: 'ON', termination_type: 'TIMER' };
+        measurementRows = [{ field_6240: 3, field_61e0: 1, field_6200: 19, field_6280: 22, field_012d: 20.5, field_0135: 45, field_40a0: 0 }];
+        await mqttPublisher.publishLatestZoneState(1, 10);
+        await new Promise(resolve => setTimeout(resolve, 30));
+        const last = (suffix) => { const hits = published.filter(m => m.topic === `tado/tanoclo/h/1/z/10/${suffix}`); return hits.length ? hits[hits.length - 1].payload : undefined; };
+        assert.strictEqual(last('hvac_mode'), 'heat');
+        assert.strictEqual(last('preset_mode'), 'For a set time');
+        assert.strictEqual(last('target_temperature'), '22');
+        assert.strictEqual(last('temperature'), '20.5');
+    });
+
+    test('publishLatestZoneState does nothing when the zone has no stored state', async () => {
+        published.length = 0;
+        measurementRows = [];
+        await mqttPublisher.publishLatestZoneState(1, 10);
+        await new Promise(resolve => setTimeout(resolve, 30));
+        assert.strictEqual(published.length, 0);
     });
 
     test('presence never lands on the preset_mode topic', async () => {
