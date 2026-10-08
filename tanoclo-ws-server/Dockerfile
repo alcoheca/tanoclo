@@ -14,9 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Clone only the ws-server directory using Git sparse checkout (avoids downloading the entire repo)
-RUN REPO_URL="https://github.com/tanoclo/tanoclo.git" \
-    && git clone --depth 1 --filter=blob:none --sparse "$REPO_URL" /tmp/repo \
+# Clone only the ws-server directory using Git sparse checkout (avoids downloading the entire repo).
+# This builds from the alcoheca fork's deploy branch. BUILD_VERSION changes with each add-on
+# version, so a new version always re-clones instead of reusing a cached layer.
+ARG BUILD_VERSION
+RUN echo "building ${BUILD_VERSION}" \
+    && REPO_URL="https://github.com/alcoheca/tanoclo.git" \
+    && git clone --depth 1 --branch deploy/home-0.5.2-fix1 --filter=blob:none --sparse "$REPO_URL" /tmp/repo \
     && cd /tmp/repo \
     && git sparse-checkout set ws-server \
     && cp -r /tmp/repo/ws-server ./ws-server \
