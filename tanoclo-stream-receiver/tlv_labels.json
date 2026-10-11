@@ -674,7 +674,7 @@
       "unit": "",
       "scale": 0.01,
       "decimals": 2,
-      "notes": "Proportional gain (Kp) for closed-loop heat demand PID calculation (P = ΔT × Kp / 2, default 0.50 / raw 50)"
+      "notes": "Proportional gain (Kp) for closed-loop heat demand PID calculation (P = ΔT × 5 × Kp, default 10.00 / raw 1000)"
     },
     "0x60a0": {
       "name": "zone_pid_ki",
@@ -690,7 +690,7 @@
       "unit": "",
       "scale": 0.01,
       "decimals": 2,
-      "notes": "Derivative gain (Kd) damping factor for closed-loop heat demand PID calculation (default 19.00 / raw 1900 / 0x76c)"
+      "notes": "Derivative gain (Kd) damping factor for closed-loop heat demand PID calculation (default 15.00 / raw 1500 / 0x5dc)"
     },
     "0x60e0": {
       "name": "zone_open_window_detection_enabled",
@@ -1253,14 +1253,14 @@
       "type": "u16be",
       "unit": "steps",
       "scale": 1,
-      "notes": "Unused. Real VA firmware uses 0x0294 for secondary position steps."
+      "notes": "Unused. Real VA uses 0x0294 for secondary position steps."
     },
     "0x0283": {
       "name": "va_act_status_flags_unused",
       "type": "s16be",
       "unit": "bits",
       "scale": 1,
-      "notes": "Unused. Real VA firmware uses 0x028d for actuator status/flags."
+      "notes": "Unused. Real VA uses 0x028d for actuator status/flags."
     },
     "0x4060": {
       "name": "zone_temperature_4060",

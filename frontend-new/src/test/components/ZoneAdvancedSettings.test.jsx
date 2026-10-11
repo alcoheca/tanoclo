@@ -18,19 +18,19 @@ describe('ZoneAdvancedSettings Component', () => {
       id: 1,
       name: 'Living Room',
       type: 'HEATING',
-      kp: 0.50,
+      kp: 10.00,
       ki: 5.00,
-      kd: 19.00,
+      kd: 15.00,
       open_window_active: 0,
       open_window_timeout: 900
     },
     isDhw: false,
     isReadOnly: false,
-    kp: 0.50,
+    kp: 10.00,
     setKp: vi.fn(),
     ki: 5.00,
     setKi: vi.fn(),
-    kd: 19.00,
+    kd: 15.00,
     setKd: vi.fn(),
     handleSaveAdvancedDetails: vi.fn(),
     isSavingAdvancedDetails: false,
@@ -51,10 +51,10 @@ describe('ZoneAdvancedSettings Component', () => {
     t: (key, def) => def || key
   };
 
-  it('renders firmware PID tuning parameters (0x6080, 0x60a0, 0x60c0) accurately', () => {
+  it('renders PID tuning parameters (0x6080, 0x60a0, 0x60c0) accurately', () => {
     const html = renderToString(<ZoneAdvancedSettings {...defaultProps} />);
 
-    // Check title & firmware reference
+    // Check title reference
     expect(html).toContain('PID Heating Demand Tuning');
 
     // Check FID badges
@@ -64,12 +64,12 @@ describe('ZoneAdvancedSettings Component', () => {
 
     // Check values
     expect(html).toContain('5.00');
-    expect(html).toContain('19.00');
-    expect(html).toContain('0.50');
+    expect(html).toContain('15.00');
+    expect(html).toContain('10.00');
 
     // Check PID formula & interplay
     expect(html).toContain('How Zone PID and Valve Sensitivity (0x4160) Interplay');
-    expect(html).toContain('Reset PID Defaults (0.50 / 5.00 / 19.00)');
+    expect(html).toContain('Reset PID Defaults (10.00 / 5.00 / 15.00)');
   });
 
   it('renders Advanced OWD hardware protocol grounding and status', () => {

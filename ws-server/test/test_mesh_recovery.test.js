@@ -56,10 +56,10 @@ describe('mesh-recovery module', () => {
         rebootedDevices = [];
         meshRecovery._activeFallbacks.clear();
         meshRecovery._deviceLinkLossMap.clear();
-        meshRecovery.init(mockDb, mockCommandApi, mockCommandApi, () => {});
+        meshRecovery.init(mockDb, mockCommandApi, mockCommandApi, () => { });
     });
 
-    test('probeDevice transmits firmware-true CON GET /d/info with Option 17 (Accept: 42)', async () => {
+    test('probeDevice transmits CON GET /d/info with Option 17 (Accept: 42)', async () => {
         const mid = await meshRecovery.probeDevice(TEST_VA_SERIAL);
         expect(mid).toBe(0x1234);
         expect(pushedCommands.length).toBe(1);

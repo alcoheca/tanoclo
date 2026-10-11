@@ -91,9 +91,9 @@ export default function ZoneSettings({ homeId, zoneId, zone, onBack, mutateZones
   const [offlineScheduleEnabled, setOfflineScheduleEnabled] = useState(zone?.offlineScheduleEnabled || false);
   const [openWindow, setOpenWindow] = useState(zone?.openWindowDetection?.enabled ?? true);
   const [owdTimeout, setOwdTimeout] = useState(900); // 15 mins default
-  const [kp, setKp] = useState(0.50);
+  const [kp, setKp] = useState(10.00);
   const [ki, setKi] = useState(5.00);
-  const [kd, setKd] = useState(19.00);
+  const [kd, setKd] = useState(15.00);
   const [owdNvmState, setOwdNvmState] = useState(1);
   const [tanocloOwdEnabled, setTaNoCloOwdEnabled] = useState(zone?.tanocloOwdEnabled || false);
   const [owdSource, setOwdSource] = useState(zone?.tanocloOwdSource || 'device');
@@ -138,9 +138,9 @@ export default function ZoneSettings({ homeId, zoneId, zone, onBack, mutateZones
       setDazzle(prev => prev !== (zone.dazzleEnabled || false) ? (zone.dazzleEnabled || false) : prev);
       setOpenWindow(prev => prev !== (zone.openWindowDetection?.enabled ?? true) ? (zone.openWindowDetection?.enabled ?? true) : prev);
       setOwdTimeout(prev => prev !== (zone.openWindowDetection?.timeoutInSeconds || 900) ? (zone.openWindowDetection?.timeoutInSeconds || 900) : prev);
-      setKp(prev => prev !== (zone.kp ?? zone.pidTuning?.kp ?? 0.50) ? (zone.kp ?? zone.pidTuning?.kp ?? 0.50) : prev);
+      setKp(prev => prev !== (zone.kp ?? zone.pidTuning?.kp ?? 10.00) ? (zone.kp ?? zone.pidTuning?.kp ?? 10.00) : prev);
       setKi(prev => prev !== (zone.ki ?? zone.pidTuning?.ki ?? 5.00) ? (zone.ki ?? zone.pidTuning?.ki ?? 5.00) : prev);
-      setKd(prev => prev !== (zone.kd ?? zone.pidTuning?.kd ?? 19.00) ? (zone.kd ?? zone.pidTuning?.kd ?? 19.00) : prev);
+      setKd(prev => prev !== (zone.kd ?? zone.pidTuning?.kd ?? 15.00) ? (zone.kd ?? zone.pidTuning?.kd ?? 15.00) : prev);
       setOwdNvmState(prev => prev !== (zone.openWindowDetection?.owdNvmState ?? 1) ? (zone.openWindowDetection?.owdNvmState ?? 1) : prev);
       setTaNoCloOwdEnabled(prev => prev !== (zone.tanocloOwdEnabled || false) ? (zone.tanocloOwdEnabled || false) : prev);
       setOwdSource(prev => prev !== (zone.tanocloOwdSource || 'device') ? (zone.tanocloOwdSource || 'device') : prev);

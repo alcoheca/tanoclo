@@ -86,25 +86,30 @@ The hardware devices execute a closed-loop PID controller to calculate heating d
 #### Zone Control Law:
 $$\text{Demand}(0\text{x}40a0) = \text{clamp}(P + I - D, 0, 100)\%$$
 
+All temperatures are processed in centidegrees ($0.01^\circ\text{C}$, e.g. $1.00^\circ\text{C} = 100$).
+
 1. **$K_p$ Proportional Gain (`0x6080`)**:
-   $$P = (T_{\text{setpoint}} - T_{\text{current}}) \times \frac{\text{raw}(0\text{x}6080)}{2000} = \Delta T \times \frac{K_p}{2}$$
-   - *Default:* `0.50` (raw 50).
-   - *Impact:* Direct proportional response to room temperature deficit. At 0.50, a 1.0°C shortfall produces 25% demand (4.0°C shortfall = 100%).
+   $$P = (T_{\text{setpoint}} - T_{\text{current}})_{0.01} \times \frac{\text{raw}(0\text{x}6080)}{2000} = \Delta T_{^\circ\text{C}} \times \frac{K_p \times 100}{20} = \Delta T_{^\circ\text{C}} \times 5 \times K_p$$
+   - *Default:* `10.00` (raw 1000 / `0x3e8`).
+   - *Impact:* Direct proportional response to room temperature deficit. With default 10.00, a 1.0°C shortfall produces 50% demand (2.0°C shortfall = 100%).
 2. **$K_i$ Integral Gain (`0x60a0`)**:
    $$I = \frac{\text{raw}(0\text{x}60a0) \times \text{Accumulator}}{30000} = \frac{\text{Accumulator} \times K_i}{300}$$
-   - *Default:* `5.00` (raw 500).
-   - *Firmware Anti-Windup:* Accumulator clamped to $3\,000\,000 / \text{raw}(0\text{x}60a0)$, capping the integral term contribution strictly at 100%.
+   - *Default:* `5.00` (raw 500 / `0x1f4`).
+   - *Anti-Windup:* Accumulator clamped to $3\,000\,000 / \text{raw}(0\text{x}60a0)$, capping the integral term contribution strictly at 100%.
    - *Impact:* Eliminates steady-state error in drafty or high-heat-loss rooms.
 3. **$K_d$ Derivative Gain (`0x60c0`)**:
-   $$D = \frac{\text{raw}(0\text{x}60c0) \times (T_{\text{current}} - T_{\text{previous}})}{2000} = \frac{K_d \times \Delta\dot{T}}{20}$$
-   - *Default:* `19.00` (raw 1900 / `0x76c`; default fallback 15.00). Subtracted from demand ($P + I - D$).
+   $$D = \frac{\text{raw}(0\text{x}60c0) \times (T_{\text{current}} - T_{\text{previous}})_{0.01}}{2000} = \frac{K_d \times \Delta\dot{T}_{^\circ\text{C}} \times 100}{20} = K_d \times 5 \times \Delta\dot{T}_{^\circ\text{C}}$$
+   - *Default:* `15.00` (raw 1500 / `0x5dc`, hardcoded fallback). Subtracted from demand ($P + I - D$).
    - *Impact:* Dynamic braking factor based on rate of temperature rise. Suppresses demand before reaching setpoint to prevent overshoot in high-inertia radiator systems.
 
 #### Device Valve Stroke Sensitivity (`0x4160`):
 $$\text{Physical Valve Opening} = \text{clamp}\left(\frac{\text{Demand} \times 100}{\text{raw}(0\text{x}4160)}, 0, 100\right)\%$$
+If `0x4160 > 100`, the firmware clamps the denominator to `100`. Therefore, values $> 100$ do not throttle and are capped at 1.00× passthrough by device hardware. Valid denominator range is 25–100:
 - Denominator `100` = 1.00× standard passthrough
 - Denominator `50` = 2.00× (+100% boost for slow/undersized radiators)
-- Denominator `150` = 0.67× (-33% throttle for oversized radiators)
+- Denominator `25` = 4.00× (+300% maximum stroke amplification)
+
+- **Bypass Flag**: If a runtime bypass flag is non-zero, sensitivity scaling is bypassed entirely and raw unscaled demand is passed through directly.
 
 *   **`temperature_offset` (`0x0140`)**: Calibration offset (`s16be`, scaled by `0.01` °C) to adjust readings affected by local draft patterns or heat pockets.
 

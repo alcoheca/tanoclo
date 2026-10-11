@@ -680,7 +680,6 @@ async function publishHvacTelemetry(homeId, fields) {
     let dhwSetpoint = fields.field_046f !== undefined ? fields.field_046f : fields['0x046f'];
     let chPumpStarts = fields.field_0464 !== undefined ? fields.field_0464 : fields['0x0464'];
     let chBurnerStarts = fields.field_0465 !== undefined ? fields.field_0465 : fields['0x0465'];
-    let dhwPumpStarts = fields.field_0465 !== undefined ? fields.field_0465 : fields['0x0465'];
     let chBurnerHours = fields.field_0467 !== undefined ? fields.field_0467 : fields['0x0467'];
     let dhwBurnerHours = fields.field_0468 !== undefined ? fields.field_0468 : fields['0x0468'];
     const faultFlags = fields.field_0458 !== undefined ? fields.field_0458 : fields['0x0458'];
@@ -704,7 +703,6 @@ async function publishHvacTelemetry(homeId, fields) {
     hours = sanitizeHvacValue(hours);
     chPumpStarts = sanitizeHvacValue(chPumpStarts);
     chBurnerStarts = sanitizeHvacValue(chBurnerStarts);
-    dhwPumpStarts = sanitizeHvacValue(dhwPumpStarts);
     chBurnerHours = sanitizeHvacValue(chBurnerHours);
     dhwBurnerHours = sanitizeHvacValue(dhwBurnerHours);
     dhwFlowRate = sanitizeHvacValue(dhwFlowRate);
@@ -739,7 +737,6 @@ async function publishHvacTelemetry(homeId, fields) {
     }
     _pub(`${BASE_TOPIC}/h/${homeId}/boiler/ch_pump_starts`, chPumpStarts);
     _pub(`${BASE_TOPIC}/h/${homeId}/boiler/ch_burner_starts`, chBurnerStarts);
-    _pub(`${BASE_TOPIC}/h/${homeId}/boiler/dhw_pump_starts`, dhwPumpStarts);
     _pub(`${BASE_TOPIC}/h/${homeId}/boiler/ch_burner_hours`, chBurnerHours);
     _pub(`${BASE_TOPIC}/h/${homeId}/boiler/dhw_burner_hours`, dhwBurnerHours);
     _pub(`${BASE_TOPIC}/h/${homeId}/boiler/fault_flags`, faultFlags);

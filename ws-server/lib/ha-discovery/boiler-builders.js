@@ -152,11 +152,11 @@ function buildBoilerDiscovery(publishEntity, heatingSystems, homesMap) {
             device: boilerDev
         });
 
-        // DHW Pump Starts (0x0465)
-        publishEntity('sensor', `tanoclo_boiler_${hs.home_id}_dhw_pump_starts`, {
-            unique_id: `tanoclo_boiler_${hs.home_id}_dhw_pump_starts`,
-            name: 'DHW Pump Starts',
-            state_topic: `tado/tanoclo/h/${hs.home_id}/boiler/dhw_pump_starts`,
+        // CH Burner Starts (0x0465)
+        publishEntity('sensor', `tanoclo_boiler_${hs.home_id}_ch_burner_starts`, {
+            unique_id: `tanoclo_boiler_${hs.home_id}_ch_burner_starts`,
+            name: 'CH Burner Starts',
+            state_topic: `tado/tanoclo/h/${hs.home_id}/boiler/ch_burner_starts`,
             icon: 'mdi:counter',
             state_class: 'total_increasing',
             availability_topic: boilerAvailTopic,

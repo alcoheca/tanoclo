@@ -33,6 +33,7 @@ const DEVICE_INACTIVE_THRESHOLD_MS = 12 * 60 * 1000; // 12 minutes without conta
 const PROBE_COOLDOWN_MS = 3 * 60 * 1000; // 3 minutes between recovery probes
 const MAX_PROBES_BEFORE_REBOOT = 2; // After 2 failed probes across >= 6 mins, escalate to reboot
 const REBOOT_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes cooldown between reboot attempts
+const AUTO_REBOOT_ENABLED = false; // Auto-reboot disabled: prevents battery drain, loss of calibration, and unwanted motor homing
 
 function init(db, commandApi, deviceCommands, logger) {
     _db = db;
@@ -214,6 +215,10 @@ async function checkFallbackEscalation() {
             if (now - rec.lastRebootTs >= REBOOT_COOLDOWN_MS) {
                 rec.lastRebootTs = now;
                 rec.rebootAttempts++;
+                if (!AUTO_REBOOT_ENABLED) {
+                    _log('info', `[mesh-recovery] Zone ${rec.zoneId} still in fallback ${rec.fallbackValue} after ${rec.probeAttempts} probes (auto-reboot escalation disabled)`);
+                    continue;
+                }
                 _log('warn', `[mesh-recovery] ⚠️ Zone ${rec.zoneId} still in fallback ${rec.fallbackValue} after ${rec.probeAttempts} probes. Escalating to device reboot.`);
 
                 try {
@@ -258,6 +263,10 @@ async function checkFallbackEscalation() {
         if (rec.probeAttempts >= MAX_PROBES_BEFORE_REBOOT) {
             if (now - rec.lastRebootTs >= REBOOT_COOLDOWN_MS) {
                 rec.lastRebootTs = now;
+                if (!AUTO_REBOOT_ENABLED) {
+                    _log('info', `[mesh-recovery] Device ${deviceId} still reporting link loss after ${rec.probeAttempts} probes (auto-reboot escalation disabled)`);
+                    continue;
+                }
                 _log('warn', `[mesh-recovery] ⚠️ Device ${deviceId} still reporting link loss after ${rec.probeAttempts} probes. Escalating to soft reboot.`);
                 await rebootDevice(deviceId);
             }

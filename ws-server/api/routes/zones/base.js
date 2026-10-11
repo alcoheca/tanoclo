@@ -109,13 +109,13 @@ router.get('/:homeId/zones', async (req, res) => {
                     enabled: Boolean(zone.open_window_enabled),
                     timeoutInSeconds: zone.open_window_timeout || 900
                 } : { supported: false },
-                kp: zone.field_6080 !== null && zone.field_6080 !== undefined ? parseFloat(zone.field_6080) : 0.50,
+                kp: zone.field_6080 !== null && zone.field_6080 !== undefined ? parseFloat(zone.field_6080) : 10.00,
                 ki: zone.field_60a0 !== null && zone.field_60a0 !== undefined ? parseFloat(zone.field_60a0) : 5.00,
-                kd: zone.field_60c0 !== null && zone.field_60c0 !== undefined ? parseFloat(zone.field_60c0) : 19.00,
+                kd: zone.field_60c0 !== null && zone.field_60c0 !== undefined ? parseFloat(zone.field_60c0) : 15.00,
                 pidTuning: {
-                    kp: zone.field_6080 !== null && zone.field_6080 !== undefined ? parseFloat(zone.field_6080) : 0.50,
+                    kp: zone.field_6080 !== null && zone.field_6080 !== undefined ? parseFloat(zone.field_6080) : 10.00,
                     ki: zone.field_60a0 !== null && zone.field_60a0 !== undefined ? parseFloat(zone.field_60a0) : 5.00,
-                    kd: zone.field_60c0 !== null && zone.field_60c0 !== undefined ? parseFloat(zone.field_60c0) : 19.00
+                    kd: zone.field_60c0 !== null && zone.field_60c0 !== undefined ? parseFloat(zone.field_60c0) : 15.00
                 },
                 tanocloOwdEnabled: Boolean(zone.tanoclo_owd_enabled),
                 tanocloOwdSource: zone.tanoclo_owd_source || 'device',

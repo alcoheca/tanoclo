@@ -5,9 +5,9 @@
  * Exposes hardware-calibrated parameters for heating zones:
  * - Closed-loop PID heating demand controller:
  *     * Demand (0x40a0) = clamp(P + I - D, 0, 100)%
- *     * FID 0x6080: Kp (proportional gain, default 0.50 / raw 50)
+ *     * FID 0x6080: Kp (proportional gain, default 10.00 / raw 1000)
  *     * FID 0x60a0: Ki (integral gain with anti-windup cap, default 5.00 / raw 500)
- *     * FID 0x60c0: Kd (derivative damping factor, default 19.00 / raw 1900)
+ *     * FID 0x60c0: Kd (derivative damping factor, default 15.00 / raw 1500)
  * - Interplay with device valve sensitivity (FID 0x4160 stroke denominator).
  * - Advanced Open Window Detection (OWD):
  *     * FID 0x60e0: Hardware switch
@@ -30,11 +30,11 @@ export default function ZoneAdvancedSettings({
   zone,
   isDhw,
   isReadOnly,
-  kp = 0.50,
+  kp = 10.00,
   setKp,
   ki = 5.00,
   setKi,
-  kd = 19.00,
+  kd = 15.00,
   setKd,
   handleSaveAdvancedDetails,
   isSavingAdvancedDetails,
@@ -54,9 +54,9 @@ export default function ZoneAdvancedSettings({
   handleOwdSourceChange,
   t
 }) {
-  const currentKp = zone?.kp ?? zone?.pidTuning?.kp ?? 0.50;
+  const currentKp = zone?.kp ?? zone?.pidTuning?.kp ?? 10.00;
   const currentKi = zone?.ki ?? zone?.pidTuning?.ki ?? 5.00;
-  const currentKd = zone?.kd ?? zone?.pidTuning?.kd ?? 19.00;
+  const currentKd = zone?.kd ?? zone?.pidTuning?.kd ?? 15.00;
 
   const isTuningDirty = (
     kp !== currentKp ||
@@ -68,11 +68,11 @@ export default function ZoneAdvancedSettings({
   const activeDurationMinutes = Math.round(owdTimeout / 60);
 
   const handleResetPidDefaults = () => {
-    if (setKp) setKp(0.50);
+    if (setKp) setKp(10.00);
     if (setKi) setKi(5.00);
-    if (setKd) setKd(19.00);
+    if (setKd) setKd(15.00);
     if (triggerToast) {
-      triggerToast(t('settings.zone_advanced.pid_reset', 'PID parameters reset to default (0.50 / 5.00 / 19.00)'), 'info');
+      triggerToast(t('settings.zone_advanced.pid_reset', 'PID parameters reset to default (10.00 / 5.00 / 15.00)'), 'info');
     }
   };
 
@@ -108,12 +108,12 @@ export default function ZoneAdvancedSettings({
               </h3>
             </div>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '4px 0 0', lineHeight: '1.4' }}>
-              {t('settings.zone_advanced.tuning_temps_desc', 'Configures closed-loop PID controller parameters in firmware to calculate heating demand (0–100%): Demand = clamp(P + I − D, 0, 100)%.')}
+              {t('settings.zone_advanced.tuning_temps_desc', 'Configures closed-loop PID controller parameters to calculate heating demand (0–100%): Demand = clamp(P + I − D, 0, 100)%.')}
             </p>
           </div>
         </div>
 
-        {/* Firmware Formula Badge */}
+        {/* Control Law Badge */}
         <div style={{
           padding: '0.75rem 1rem',
           backgroundColor: 'var(--bg-input, rgba(0,0,0,0.2))',
@@ -129,11 +129,11 @@ export default function ZoneAdvancedSettings({
           gap: '0.5rem'
         }}>
           <div>
-            <span style={{ color: 'var(--text-secondary)' }}>{t('settings.zone_advanced.pid_formula_title', 'Firmware Control Law')}: </span>
+            <span style={{ color: 'var(--text-secondary)' }}>{t('settings.zone_advanced.pid_formula_title', 'Control Law')}: </span>
             <strong style={{ color: 'var(--primary-light, #3b82f6)' }}>{t('settings.zone_advanced.pid_formula_badge', 'Demand = clamp(P + I − D, 0, 100)%')}</strong>
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            {t('settings.zone_advanced.pid_formula_sub', 'P = ΔT × (Kp / 2) | I = acc × Ki / 300 | D = Kd × ΔṪ / 20')}
+            {t('settings.zone_advanced.pid_formula_sub', 'P = ΔT × (Kp × 5) | I = acc × Ki / 300 | D = Kd × ΔṪ / 20')}
           </div>
         </div>
 
@@ -159,15 +159,15 @@ export default function ZoneAdvancedSettings({
               </span>
             </div>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
-              {t('settings.zone_advanced.deviation_limit_desc')} <strong>0.50</strong>.
+              {t('settings.zone_advanced.deviation_limit_desc')} <strong>10.00</strong>.
               <br />
               • <em>{t('common.interpretation', 'Interpretation')}</em>: {t('settings.zone_advanced.deviation_limit_interpretation')}
             </p>
             <input
               type="range"
-              min="0.05"
-              max="2.00"
-              step="0.05"
+              min="1.00"
+              max="30.00"
+              step="0.50"
               value={kp}
               onChange={(e) => setKp && setKp(Number(e.target.value))}
               disabled={isReadOnly}
@@ -235,7 +235,7 @@ export default function ZoneAdvancedSettings({
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.4' }}>
               {t('settings.zone_advanced.baseline_temp_desc')}
               <br />
-              • <em>{t('common.interpretation', 'Interpretation')}</em>: {t('settings.zone_advanced.baseline_temp_interpretation')} <strong>19.00</strong>.
+              • <em>{t('common.interpretation', 'Interpretation')}</em>: {t('settings.zone_advanced.baseline_temp_interpretation')}
             </p>
             <input
               type="range"
@@ -280,7 +280,7 @@ export default function ZoneAdvancedSettings({
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem' }}
           >
             <RotateCcw size={14} />
-            {t('settings.zone_advanced.reset_pid_defaults', 'Reset PID Defaults (0.50 / 5.00 / 19.00)')}
+            {t('settings.zone_advanced.reset_pid_defaults', 'Reset PID Defaults (10.00 / 5.00 / 15.00)')}
           </Button>
 
           <Button
@@ -338,7 +338,7 @@ export default function ZoneAdvancedSettings({
             </span>
           </div>
 
-          {/* Section 1: Firmware Hardware Protocol Grounding Grid */}
+          {/* Section 1: Hardware Grounding Grid */}
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',

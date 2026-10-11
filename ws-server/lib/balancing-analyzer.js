@@ -183,7 +183,7 @@ function generateDeviceSuggestion({
         suggestedSensitivity = currentSensitivity > 50 ? 50 : Math.max(25, currentSensitivity - 15);
     } else {
         // Dampened proportion: ratio < 1 means room is slower than median -> lower sens (more valve opening)
-        // ratio > 1 means room is faster than median -> higher sens (>100 throttles oversized radiator)
+        // ratio > 1 means room is faster than median -> higher sens up to 100 (standard baseline)
         const ratio = deviceRiseRate / safeMedian;
         let target = currentSensitivity * Math.pow(ratio, 0.5);
 
@@ -193,7 +193,7 @@ function generateDeviceSuggestion({
             target *= Math.pow(avgCircuitDeltaT / 12, 0.3);
         }
 
-        const clamped = Math.max(25, Math.min(200, target));
+        const clamped = Math.max(25, Math.min(100, target));
         suggestedSensitivity = Math.round(clamped / 5) * 5;
     }
 
@@ -209,7 +209,7 @@ function generateDeviceSuggestion({
     if (changeDirection === 'INCREASE_OPENING') {
         reasoning = `Rise rate (+${deviceRiseRate.toFixed(3)}°C/min) is below house median (+${safeMedian.toFixed(3)}°C/min). Boost valve flow by ${diffPct}%.`;
     } else if (changeDirection === 'DECREASE_OPENING') {
-        reasoning = `Rise rate (+${deviceRiseRate.toFixed(3)}°C/min) exceeds house median (+${safeMedian.toFixed(3)}°C/min). ${suggestedSensitivity > 100 ? 'Throttle valve flow (oversized radiator)' : 'Reduce valve flow'} by ${diffPct}%.`;
+        reasoning = `Rise rate (+${deviceRiseRate.toFixed(3)}°C/min) exceeds house median (+${safeMedian.toFixed(3)}°C/min). Reduce valve boost by ${diffPct}%.`;
     } else {
         reasoning = `Rise rate (+${deviceRiseRate.toFixed(3)}°C/min) is well balanced with house median (+${safeMedian.toFixed(3)}°C/min).`;
     }

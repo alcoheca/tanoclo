@@ -257,7 +257,7 @@ This dictionary consolidates all observed TLV fields, mapping their hex codes, t
 | `0x012e` | `pcb_temperature` | `s16be` | 0.01 | °C | `/d/{id}/sen` | `device_measurements` | `field_012e` | Onboard MCU/PCB reference NTC thermistor. Exposed in API `hardwareDiagnostics.pcbTemperature` and UI. |
 | `0x0135` | `humidity_percent` | `u16be` | 0.1 | % | `/d/{id}/sen` | `device_measurements` | `field_0135` | Room relative humidity level (raw 607 = 60.7%). |
 | `0x0136` | `ambient_light_level` | `u16be` | 1.0 | - | `/d/{id}/sen` | `device_measurements` | `field_0136` | Ambient light photodiode level (0-100). Used for display auto-dimming. Exposed in API `hardwareDiagnostics.ambientLightLevel` and UI. |
-| `0x0137` | `dial_encoder_steps` | `u8` | 1.0 | step | `/d/{id}/sen` | `device_measurements` | `field_0137` | Relative rotary dial encoder movement steps (resets to 0x7f after report). Exposed in MQTT `dial_encoder_steps`. |
+| `0x0137` | `dial_encoder_steps` | `u8` | 1.0 | step | `/d/{id}/sen` | `device_measurements` | `field_0137` | Relative rotary dial encoder movement steps (127 = idle sentinel, resets to 0x7f after report). Exposed in MQTT `dial_encoder_steps`. |
 | `0x0140` | `temperature_offset` | `s16be` | 0.01 | °C | `/d/{id}/config` | `devices` | `field_0140` | Temperature offset in Celsius. |
 | `0x0143` | `device_flag_0143` | `bool` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->device_flag_0143` | Device setup flag. |
 | `0x0149` | `va_orientation` | `u8` | 1.0 | enum | `/d/{id}/config` | `devices` | `field_0149` | Valve layout: `0`=HORIZONTAL, `1`=VERTICAL. |
@@ -441,14 +441,14 @@ This dictionary consolidates all observed TLV fields, mapping their hex codes, t
 | `0x40e0` | `heating_active_mode` | `bool` | 1.0 | - | `/z/p` | `tlv_labels` | - | Heating mode state flag (0 or 1) in `/z/p` pings. |
 | `0x4120` | `overlay_active_flag` | `bool` | 1.0 | - | `/z/p` | `tlv_labels` | - | Manual overlay / dial override active indicator in `/z/p` pings. |
 | `0x4140` | `owd_state` | `u8` | 1.0 | - | `/z/p` | `tlv_labels` | - | Open Window Detection state flag in `/z/p` pings. |
-| `0x4160` | `demand_scale_denominator` | `u8` | 1.0 | - | `/d/{serial}/config` | `devices` | `valve_sensitivity` | Valve demand proportional scaling denominator (default 100). |
+| `0x4160` | `demand_scale_denominator` | `u8` | 1.0 | - | `/d/{serial}/config` | `devices` | `valve_sensitivity` | Valve demand proportional scaling denominator (range 25-100; firmware clamps >100 to 100, default 100). |
 | `0x6000` | `zone_state_base` | `bytes` | 1.0 | - | `/z/{id}/s` | `tlv_labels` | - | Baseline zone state payload block. |
 | `0x6020` | `zone_service_type` | `u8` | 1.0 | enum | `/z/{id}/s` | `zone_measurements` | `field_6020` | Zone classification: `1`=HEATING, `2`=HOT_WATER. |
 | `0x6040` | `zone_program_uri` | `string` | 1.0 | - | `/z/{id}/config` | `tlv_labels` | - | CoAP URI for zone program timetable. |
 | `0x6060` | `zone_program_enabled` | `bool` | 1.0 | - | `/z/{id}/config` | `tlv_labels` | - | Boolean flag indicating schedule active. |
-| `0x6080` | `zone_pid_kp` | `s16be` | 0.01 | - | `/z/{id}/config` | `zones` | `field_6080` | Proportional gain (Kp) for closed-loop heat demand PID calculation (P = ΔT × Kp / 2, default 0.50). |
-| `0x60a0` | `zone_pid_ki` | `s16be` | 0.01 | - | `/z/{id}/config` | `zones` | `field_60a0` | Integral gain (Ki) for closed-loop heat demand PID calculation with anti-windup (default 5.00). |
-| `0x60c0` | `zone_pid_kd` | `s16be` | 0.01 | - | `/z/{id}/config` | `zones` | `field_60c0` | Derivative gain (Kd) damping factor for closed-loop heat demand PID calculation (default 19.00 / 0x76c). |
+| `0x6080` | `zone_pid_kp` | `s16be` | 0.01 | - | `/z/{id}/config` | `zones` | `field_6080` | Proportional gain (Kp) for closed-loop heat demand PID calculation (P = ΔT × 5 × Kp, default 10.00 / raw 1000). |
+| `0x60a0` | `zone_pid_ki` | `s16be` | 0.01 | - | `/z/{id}/config` | `zones` | `field_60a0` | Integral gain (Ki) for closed-loop heat demand PID calculation with anti-windup (default 5.00 / raw 500). |
+| `0x60c0` | `zone_pid_kd` | `s16be` | 0.01 | - | `/z/{id}/config` | `zones` | `field_60c0` | Derivative gain (Kd) damping factor for closed-loop heat demand PID calculation (default 15.00 / raw 1500 / 0x5dc). |
 | `0x60e0` | `zone_open_window_detection_enabled` | `bool` | 1.0 | - | `/z/{id}/config` | `zones` | `open_window_enabled` | Zone Open Window Detection enabled switch. |
 | `0x6160` | `home_away` | `u8` | 1.0 | enum | `/z/{id}/s` | `zone_measurements` | `field_6160` | Home occupancy state: `1`=HOME, `2`=AWAY. |
 | `0x6180` | `zone_demand_master_latch` | `bool` | 1.0 | - | `/z/{id}/s` | `zone_measurements` | `field_6180` | Zone demand master relay/bus latch; asserted (1) when heating demand in zone engages boiler firing / circuit bus; 0 when idle. |
@@ -590,7 +590,7 @@ An 8-bit unsigned byte (`u8`) representing hardware reset flags retrieved from t
 
 ### 6.5 Dial Interaction Telemetry (`0x0137` and `0x027a`)
 Used for reporting user rotation and touch interactions on the physical device interface:
-*   **Dial Encoder Steps (`0x0137`)**: Represents relative rotation step offset. The value resets to a baseline offset of `0x7f` ($127$) after each reported period. A value $> 127$ indicates clockwise rotation steps, while a value $< 127$ indicates counter-clockwise steps.
+*   **Dial Encoder Steps (`0x0137`)**: Relative rotary dial movement step accumulator. `127` (`0x7f`) is the idle sentinel value indicating no change. The accumulator is initialized to `127`; `0x0137` is only emitted when accumulator $\neq 127$. Values $> 127$ represent clockwise rotation steps ($127 + \Delta$), while values $< 127$ represent counter-clockwise steps ($127 - \Delta$). Immediately after emission, the accumulator is reset back to sentinel `127`.
 *   **Dial Click/Touch Action (`0x027a`)**: Enumerates the click or capacitive touch interaction type registered on the dial overlay.
 
 ---
@@ -660,7 +660,7 @@ For all devices reporting via `/d/{serial}/sen`, `/d/{serial}/mount`, or `/d/{se
 *   **`stemTemperature` (`0x01c8`)**: Radiator valve metallic mount/stem temperature in °C (VA only, used for thermal plume compensation).
 *   **`ambientLightLevel` (`0x0136`)**: Photodiode exposure level (0–100) for automatic display dimming.
 *   **`dialInteractionResult` (`0x027a`)**: Last recorded hardware interaction code (`0` = idle/normal, `3` = manual override committed).
-*   **`dialEncoderSteps` (`0x0137`)**: Relative encoder movement steps from rotary dial (baseline `127`).
+*   **`dialEncoderSteps` (`0x0137`)**: Relative encoder movement steps from rotary dial (127 = idle sentinel, >127 clockwise, <127 CCW).
 *   **`hvacLinkStatusFlags` (`0x0161` bit 14)**: OpenTherm link physical bus synchronization flag (`1` = synchronized).
 *   **`openthermVoltage` (`0x0161` bits 0–11)**: OpenTherm bus idle voltage in Volts (scaled from mV).
 *   **`resetReason` (`0x0160`)**: Human-readable reset reason decoded from MCU hardware flags (`POR/PDR`, `PIN`, `Software`, `IWDG`, `WWDG`, `Low-Power`).
@@ -677,9 +677,9 @@ When MQTT publishing is active, telemetry is pushed to the following topics:
 
 | Topic Pattern | Source FID | Unit | Description |
 | :--- | :--- | :--- | :--- |
-| `tafaux/{homeId}/device/{serialNo}/stem_temperature` | `0x01c8` | °C | VA radiator valve base stem temperature. |
-| `tafaux/{homeId}/device/{serialNo}/dial_interaction_result` | `0x027a` | int | User dial interaction status code. |
-| `tafaux/{homeId}/device/{serialNo}/dial_encoder_steps` | `0x0137` | steps | Relative dial movement steps (127 baseline). |
-| `tafaux/{homeId}/circuit/{circuitNumber}/operating_mode` | `0x2090` | string | Circuit operating mode name (`SCHEDULE`, `STANDBY`, etc.). |
-| `tafaux/{homeId}/hvac/dhw_flow_rate_lpm` | `0x045e` | L/min | DHW domestic hot water flow rate. |
-| `tafaux/{homeId}/hvac/ch_burner_starts` | `0x0465` | count | CH burner ignition cycle count. |
+| `tado/tanoclo/h/{homeId}/device/{serialNo}/stem_temperature` | `0x01c8` | °C | VA radiator valve base stem temperature. |
+| `tado/tanoclo/h/{homeId}/device/{serialNo}/dial_interaction_result` | `0x027a` | int | User dial interaction status code. |
+| `tado/tanoclo/h/{homeId}/device/{serialNo}/dial_encoder_steps` | `0x0137` | steps | Relative dial movement steps (127 = idle sentinel). |
+| `tado/tanoclo/h/{homeId}/circuit/{circuitNumber}/operating_mode` | `0x2090` | string | Circuit operating mode name (`SCHEDULE`, `STANDBY`, etc.). |
+| `tado/tanoclo/h/{homeId}/boiler/dhw_flow_rate_lpm` | `0x045e` | L/min | DHW domestic hot water flow rate. |
+| `tado/tanoclo/h/{homeId}/boiler/ch_burner_starts` | `0x0465` | count | CH burner ignition cycle count. |

@@ -150,16 +150,16 @@ describe('Hydraulic Balancing Analyzer', () => {
             expect(suggestion.changeDirection).toBe('INCREASE_OPENING');
         });
 
-        it('suggests throttling (>100) for oversized radiators heating significantly faster than median', () => {
+        it('suggests reducing boost up to 100 for radiators heating significantly faster than median', () => {
             const suggestion = generateDeviceSuggestion({
-                currentSensitivity: 100,
+                currentSensitivity: 70,
                 deviceRiseRate: 0.25,
                 houseMedianRiseRate: 0.10
             });
 
-            expect(suggestion.suggestedSensitivity).toBeGreaterThan(100);
+            expect(suggestion.suggestedSensitivity).toBe(100);
             expect(suggestion.changeDirection).toBe('DECREASE_OPENING');
-            expect(suggestion.reasoning).toContain('Throttle');
+            expect(suggestion.reasoning).toContain('Reduce valve boost');
         });
 
         it('allows deep boost (<50 down to 25) when starting from already boosted sensitivity', () => {

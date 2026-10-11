@@ -396,13 +396,13 @@ async function buildZoneConfigFields(homeId, zoneId) {
         fields['0x62c0'] = rows[0].open_window_timeout / 60;
     }
     if (rows[0].field_60a0 !== null && rows[0].field_60a0 !== undefined) {
-        fields['0x60a0'] = Math.round(parseFloat(rows[0].field_60a0) / 0.01);
+        fields['0x60a0'] = parseFloat(rows[0].field_60a0);
     }
     if (rows[0].field_60c0 !== null && rows[0].field_60c0 !== undefined) {
-        fields['0x60c0'] = Math.round(parseFloat(rows[0].field_60c0) / 0.01);
+        fields['0x60c0'] = parseFloat(rows[0].field_60c0);
     }
     if (rows[0].field_6080 !== null && rows[0].field_6080 !== undefined) {
-        fields['0x6080'] = Math.round(parseFloat(rows[0].field_6080) / 0.01);
+        fields['0x6080'] = parseFloat(rows[0].field_6080);
     }
     if (rows[0].field_6340 !== null && rows[0].field_6340 !== undefined) {
         fields['0x6340'] = parseInt(rows[0].field_6340, 10);

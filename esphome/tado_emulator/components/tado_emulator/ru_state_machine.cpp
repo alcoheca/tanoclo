@@ -180,7 +180,7 @@ void RUStateMachine::tick(uint32_t now_ms, uint32_t now_s, std::vector<OutboundF
       }
     }
 
-    // Firmware-true startup sync on boot / wake
+    // Startup sync on boot / wake
     if (!config_.boot_sync_done && config_.ib_mac_known) {
       config_.boot_sync_done = true;
       std::string cfg_path = "d/" + config_.serial_no + "/config";
@@ -228,7 +228,7 @@ void RUStateMachine::tick(uint32_t now_ms, uint32_t now_s, std::vector<OutboundF
       if (!frame.empty()) outbound_frames.push_back(std::move(frame));
     }
 
-    // Firmware-true hourly maintenance burst (every 3600s periodic sync)
+    // Hourly maintenance burst (every 3600s periodic sync)
     if (config_.last_fallback_push_ts == 0) {
       config_.last_fallback_push_ts = now_s;
     } else if (now_s > config_.last_fallback_push_ts && (now_s - config_.last_fallback_push_ts >= 3600)) {
@@ -1018,8 +1018,8 @@ void RUStateMachine::handle_coap_message(const ParsedCoAP &coap, const ParsedMac
         } else if (t.tag == TLV_ZONE_OVERLAY_TEMP_6280 && t.value.size() >= 2) {
           int16_t raw_sp = (int16_t)((t.value[0] << 8) | t.value[1]);
           sp_overlay = raw_sp / 100.0f;
-        } else if (t.tag == TLV_ZONE_OVERLAY_MODE_6240 && t.value.size() >= 2) {
-          config_.zone_mode = (t.value[0] << 8) | t.value[1];
+        } else if (t.tag == TLV_ZONE_OVERLAY_MODE_6240 && t.value.size() >= 1) {
+          config_.zone_mode = t.value[0];
         }
       }
       if (config_.zone_mode > 0 && sp_overlay >= 0.0f) {
@@ -1204,8 +1204,8 @@ void RUStateMachine::handle_coap_message(const ParsedCoAP &coap, const ParsedMac
       if ((t.tag == TLV_ZONE_TARGET_TEMP_6200 || t.tag == TLV_ZONE_OVERLAY_TEMP_6280) && t.value.size() >= 2) {
         int16_t raw_sp = (int16_t)((t.value[0] << 8) | t.value[1]);
         config_.setpoint_temp_celsius = raw_sp / 100.0f;
-      } else if (t.tag == TLV_ZONE_OVERLAY_MODE_6240 && t.value.size() >= 2) {
-        config_.zone_mode = (t.value[0] << 8) | t.value[1];
+      } else if (t.tag == TLV_ZONE_OVERLAY_MODE_6240 && t.value.size() >= 1) {
+        config_.zone_mode = t.value[0];
       }
     }
 

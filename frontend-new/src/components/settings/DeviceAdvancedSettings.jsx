@@ -136,7 +136,7 @@ export const DIAG_FIDS = [
     name: 'temp_comp_ambient_feed',
     label: '0x0294 - Ambient Temperature Compensation Feed (s16)',
     shortLabel: 'Ambient Temp Feed',
-    desc: 'Ambient temperature compensation feed injected into firmware control loop (in 0.01 °C, e.g. 1822 = 18.22 °C).',
+    desc: 'Ambient temperature compensation feed injected into control loop (in 0.01 °C, e.g. 1822 = 18.22 °C).',
     access: 'rw',
     type: 'temp',
     category: 'telemetry',
@@ -611,7 +611,7 @@ export function validateDebugValue(fidStr, val, isNvm) {
       case '0X0004':
       case '0X0006':
       case '0X0008': {
-        return { isValid: false, error: 'Slot is read-only hardware parameter in firmware' };
+        return { isValid: false, error: 'Slot is read-only hardware parameter' };
       }
     }
   } else {
@@ -861,11 +861,11 @@ export default function DeviceAdvancedSettings({
     const def = DIAG_FIDS.find(d => d.fid === fidToRead) || currentStDef;
 
     if (isIB) {
-      showToast('IB firmware has handler_get = NULL for /d/dbg/st. Read via NVM or Memory Dumper.', 'warning');
+      showToast('IB has no handler for /d/dbg/st. Read via NVM or Memory Dumper.', 'warning');
       return;
     }
     if (def.access === 'wo') {
-      showToast(`${fidToRead} is write-only in firmware (sensor injection hook).`, 'warning');
+      showToast(`${fidToRead} is write-only.`, 'warning');
       return;
     }
 
@@ -907,7 +907,7 @@ export default function DeviceAdvancedSettings({
   // Handle ST Write (PUT)
   const handleWriteSt = async () => {
     if (currentStDef.access === 'ro') {
-      showToast(`${currentStDef.fid} is read-only in firmware.`, 'warning');
+      showToast(`${currentStDef.fid} is read-only.`, 'warning');
       return;
     }
     if (!stValidation.isValid) {
@@ -945,7 +945,7 @@ export default function DeviceAdvancedSettings({
     const def = NVM_SLOTS.find(s => s.fid === fidToRead) || currentNvmDef;
 
     if (def.access === 'wo') {
-      showToast(`${fidToRead} is a setter-only slot in firmware.`, 'warning');
+      showToast(`${fidToRead} is a setter-only.`, 'warning');
       return;
     }
 
@@ -987,7 +987,7 @@ export default function DeviceAdvancedSettings({
   // Handle NVM Write (PUT)
   const handleWriteNvm = async () => {
     if (currentNvmDef.access === 'ro') {
-      showToast(`${currentNvmDef.fid} is read-only in firmware.`, 'warning');
+      showToast(`${currentNvmDef.fid} is read-only.`, 'warning');
       return;
     }
     if (currentNvmDef.fid === '0x000C' && !confirmFactoryReset) {
@@ -1903,7 +1903,7 @@ export default function DeviceAdvancedSettings({
           }}>
             <HelpCircle size={16} style={{ color: '#38bdf8', flexShrink: 0 }} />
             <div>
-              <strong>Firmware Notice (IB01)</strong>: Internet Bridge firmware defines <code>handler_get = NULL</code> for <code>/d/dbg/st</code>. State injection via <code>PUT</code> is supported, but parameter reads must be performed using <strong>NVM Storage (/d/dbg2/tlvs)</strong> or the <strong>Memory Dumper (/d/dbg/m)</strong>.
+              <strong>Notice (IB01)</strong>: Internet Bridge has no handler for <code>/d/dbg/st</code>. State injection via <code>PUT</code> is supported, but parameter reads must be performed using <strong>NVM Storage (/d/dbg2/tlvs)</strong> or the <strong>Memory Dumper (/d/dbg/m)</strong>.
             </div>
           </div>
         )}
@@ -2185,7 +2185,7 @@ export default function DeviceAdvancedSettings({
                 ) : isIB ? (
                   'GET Unsupported (IB)'
                 ) : currentStDef.access === 'wo' ? (
-                  'Write-Only in Firmware'
+                  'Write-Only'
                 ) : (
                   t('settings.device_advanced.read_param_get', 'Read Parameter (GET)')
                 )}
@@ -2242,7 +2242,7 @@ export default function DeviceAdvancedSettings({
               border: '1px solid rgba(255,255,255,0.05)'
             }}>
               <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Active Firmware Value
+                Active Value
               </span>
               <strong style={{ fontSize: '1.25rem', color: 'var(--primary)', margin: '0.2rem 0', textAlign: 'center' }}>
                 {stFriendly || (stValue !== '' ? stValue : 'No Reading Yet')}
@@ -2652,7 +2652,7 @@ export default function DeviceAdvancedSettings({
                     {t('settings.device_advanced.reading', 'Reading...')}
                   </span>
                 ) : currentNvmDef.access === 'wo' ? (
-                  'Write-Only in Firmware'
+                  'Write-Only'
                 ) : (
                   t('settings.device_advanced.read_stored_nvm', 'Read Stored NVM (GET)')
                 )}

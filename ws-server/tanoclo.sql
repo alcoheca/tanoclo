@@ -24652,9 +24652,9 @@ INSERT INTO `tlv_labels` (`id`, `hex_id`, `name`, `type`, `unit`, `scale`, `deci
 (110, '0x6020', 'zone_service_type', 'u8', 'enum', NULL, NULL, NULL, 'Seen in z/*/s.', NULL),
 (111, '0x6040', 'zone_program_uri', 'string', 'uri', NULL, NULL, NULL, 'CoAP URI for zone program endpoint (often /z/p)', NULL),
 (112, '0x6060', 'zone_program_enabled', 'bool', 'bool', NULL, NULL, NULL, 'Boolean flag related to zone program/schedule config', NULL),
-(113, '0x6080', 'zone_pid_kp', 'u16be', '', 0.01, 2, NULL, 'Proportional gain (Kp) for closed-loop heat demand PID calculation (P = ΔT × Kp / 2, default 0.50).', NULL),
-(114, '0x60a0', 'zone_pid_ki', 'u16be', '', 0.01, 2, NULL, 'Integral gain (Ki) for closed-loop heat demand PID calculation with anti-windup (default 5.00).', NULL),
-(115, '0x60c0', 'zone_pid_kd', 'u16be', '', 0.01, 2, NULL, 'Derivative gain (Kd) damping factor for closed-loop heat demand PID calculation (default 19.00 / 0x76c).', NULL),
+(113, '0x6080', 'zone_pid_kp', 'u16be', '', 0.01, 2, NULL, 'Proportional gain (Kp) for closed-loop heat demand PID calculation (P = ΔT × 5 × Kp, default 10.00 / raw 1000).', NULL),
+(114, '0x60a0', 'zone_pid_ki', 'u16be', '', 0.01, 2, NULL, 'Integral gain (Ki) for closed-loop heat demand PID calculation with anti-windup (default 5.00 / raw 500).', NULL),
+(115, '0x60c0', 'zone_pid_kd', 'u16be', '', 0.01, 2, NULL, 'Derivative gain (Kd) damping factor for closed-loop heat demand PID calculation (default 15.00 / raw 1500 / 0x5dc).', NULL),
 (116, '0x60e0', 'zone_open_window_detection_enabled', 'bool', 'bool', NULL, NULL, NULL, 'Boolean flag. True if open window detection is enabled', NULL),
 (117, '0x6160', 'home_away', 'u8', 'enum', NULL, NULL, NULL, 'Seen in z/*/s. Flips to 2 on away-mode, back to 1 on home-mode.', NULL),
 (118, '0x6180', 'zone_state_flag_6180', 'bool', NULL, NULL, NULL, NULL, 'Seen in z/*/s.', NULL),
@@ -24807,7 +24807,7 @@ INSERT INTO `tlv_labels` (`id`, `hex_id`, `name`, `type`, `unit`, `scale`, `deci
 (299, '0x40c0', 'circuit_pump_active', 'bool', 'bool', NULL, NULL, NULL, 'Pump active boolean flag.', NULL),
 (300, '0x4100', 'circuit_heating_active', 'bool', 'bool', NULL, NULL, NULL, 'Heating active boolean flag.', NULL),
 (301, '0x4140', 'circuit_owd_demand_cut', 'u8', '%', NULL, NULL, NULL, 'Open window detection active demand cut indicator.', NULL),
-(302, '0x4160', 'demand_scale_denominator', 'u8', 'ratio', NULL, NULL, NULL, 'Valve demand scaling denominator: (demand * 100) / denom clamped to 100%. Denom=100 is 1x gain, <100 amplifies, >100 reduces.', NULL);
+(302, '0x4160', 'demand_scale_denominator', 'u8', 'ratio', NULL, NULL, NULL, 'Valve demand scaling denominator: (demand * 100) / denom clamped to 100%. Denom range 25-100 (100 is 1x gain, <100 amplifies; firmware clamps >100 to 100).', NULL);
 
 CREATE TABLE `users` (
   `id` varchar(36) NOT NULL,
@@ -24861,9 +24861,9 @@ CREATE TABLE `zones` (
   `last_schedule_change_at` datetime DEFAULT NULL,
   `display_order` int(11) DEFAULT 0,
   `field_60a0` decimal(5,2) DEFAULT 5.00 COMMENT 'zone_pid_ki',
-  `field_6080` decimal(5,2) DEFAULT 0.50 COMMENT 'zone_pid_kp',
+  `field_6080` decimal(5,2) DEFAULT 10.00 COMMENT 'zone_pid_kp',
   `field_6340` tinyint(3) UNSIGNED DEFAULT 1 COMMENT 'owd_nvm_state',
-  `field_60c0` decimal(5,2) DEFAULT 19.00 COMMENT 'zone_pid_kd'
+  `field_60c0` decimal(5,2) DEFAULT 15.00 COMMENT 'zone_pid_kd'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `zone_measurements` (

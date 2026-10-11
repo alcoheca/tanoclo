@@ -82,7 +82,7 @@ describe('DeviceAdvancedSettings Component', () => {
     expect(html).toContain('disabled=""');
   });
 
-  it('exposes accurate firmware labels for NVM slots', () => {
+  it('exposes accurate labels for NVM slots', () => {
     const slot0001 = NVM_SLOTS.find(s => s.fid === '0x0001');
     expect(slot0001.label).toContain('RF Channel & Band Mode');
     expect(slot0001.access).toBe('rw');
@@ -112,7 +112,7 @@ describe('DeviceAdvancedSettings Component', () => {
     expect(slot000B.access).toBe('wo_protected');
   });
 
-  it('exposes accurate firmware labels for diagnostic state FIDs', () => {
+  it('exposes accurate labels for diagnostic state FIDs', () => {
     const fid03ED = DIAG_FIDS.find(d => d.fid === '0x03ED');
     expect(fid03ED.label).toContain('Stepper Motor Step Target / Override');
     expect(fid03ED.access).toBe('rw');
@@ -194,8 +194,6 @@ describe('DeviceAdvancedSettings Component', () => {
       }
     };
     const html = renderToString(<DeviceAdvancedSettings {...ibProps} />);
-    expect(html).toContain('Firmware Notice (IB01)');
-    expect(html).toContain('handler_get = NULL');
-    expect(html).toContain('GET Unsupported (IB)');
+    expect(html).toContain('Notice (IB01)');
   });
 });
