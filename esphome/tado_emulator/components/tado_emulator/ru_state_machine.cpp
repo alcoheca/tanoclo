@@ -212,7 +212,7 @@ void RUStateMachine::tick(uint32_t now_ms, uint32_t now_s, std::vector<OutboundF
 
   // 1. Operational State: Autonomous heartbeats & Hourly maintenance burst
   if (config_.state == STATE_OPERATIONAL) {
-    // Periodic closed-loop PID recalculation (FUN_08031970 every 60s)
+    // Periodic closed-loop PID recalculation every 60s
     if (config_.last_pid_tick_ms == 0 || (now_ms - config_.last_pid_tick_ms >= 60000)) {
       config_.last_pid_tick_ms = now_ms;
       uint8_t prev_demand = config_.current_demand_percent;

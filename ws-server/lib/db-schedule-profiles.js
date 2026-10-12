@@ -10,24 +10,6 @@ const { getLocalParts } = require('./utils');
 const dbHomes = require('./db-homes');
 
 /**
- * Check if a date (in MM-DD format) falls within a date range (both MM-DD),
- * correctly handling ranges that span across the new year (e.g., 12-21 to 03-20).
- *
- * @param {string} dateStr - 'MM-DD'
- * @param {string} startStr - 'MM-DD'
- * @param {string} endStr - 'MM-DD'
- * @returns {boolean}
- */
-function isDateInRange(dateStr, startStr, endStr) {
-    if (!dateStr || !startStr || !endStr) return false;
-    if (startStr <= endStr) {
-        return dateStr >= startStr && dateStr <= endStr;
-    }
-    // Range wraps around year boundary (e.g. 12-21 to 03-20)
-    return dateStr >= startStr || dateStr <= endStr;
-}
-
-/**
  * Fetch all schedule profiles for a home.
  * @param {number} homeId
  * @returns {Promise<{activeProfileId: number|null, profiles: Array}>}
@@ -150,6 +132,7 @@ async function captureCurrentSchedulesToProfile(homeId, profileId) {
 
     // Query active timetable blocks for all zones in home
     const [zones] = await pool.execute('SELECT id FROM zones WHERE home_id = ?', [homeId]);
+    const rowsToInsert = [];
     for (const zone of zones) {
         const [ttRows] = await pool.execute(
             'SELECT id, type FROM zone_timetables WHERE zone_id = ? AND home_id = ? AND is_active = 1 LIMIT 1',
@@ -164,17 +147,22 @@ async function captureCurrentSchedulesToProfile(homeId, profileId) {
                 [ttId]
             );
             for (const b of blocks) {
-                await pool.execute(`
-                    INSERT INTO schedule_profile_blocks (
-                        profile_id, home_id, zone_id, timetable_type, day_type, start_time, end_time,
-                        geolocation_override, setting_type, setting_power, setting_temp_celsius, setting_temp_fahrenheit
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `, [
+                rowsToInsert.push([
                     profileId, homeId, zone.id, ttType, b.day_type, b.start_time, b.end_time,
                     b.geolocation_override || 0, b.setting_type, b.setting_power, b.setting_temp_celsius, b.setting_temp_fahrenheit
                 ]);
             }
         }
+    }
+
+    if (rowsToInsert.length > 0) {
+        const placeholders = rowsToInsert.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+        await pool.execute(`
+            INSERT INTO schedule_profile_blocks (
+                profile_id, home_id, zone_id, timetable_type, day_type, start_time, end_time,
+                geolocation_override, setting_type, setting_power, setting_temp_celsius, setting_temp_fahrenheit
+            ) VALUES ${placeholders}
+        `, rowsToInsert.flat());
     }
 }
 
@@ -239,16 +227,21 @@ async function createScheduleProfile(homeId, data) {
             'SELECT * FROM schedule_profile_blocks WHERE profile_id = ? AND home_id = ?',
             [copyFromProfileId, homeId]
         );
-        for (const b of sourceBlocks) {
+        if (sourceBlocks.length > 0) {
+            const placeholders = sourceBlocks.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+            const values = [];
+            for (const b of sourceBlocks) {
+                values.push(
+                    profileId, homeId, b.zone_id, b.timetable_type, b.day_type, b.start_time, b.end_time,
+                    b.geolocation_override, b.setting_type, b.setting_power, b.setting_temp_celsius, b.setting_temp_fahrenheit
+                );
+            }
             await pool.execute(`
                 INSERT INTO schedule_profile_blocks (
                     profile_id, home_id, zone_id, timetable_type, day_type, start_time, end_time,
                     geolocation_override, setting_type, setting_power, setting_temp_celsius, setting_temp_fahrenheit
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
-                profileId, homeId, b.zone_id, b.timetable_type, b.day_type, b.start_time, b.end_time,
-                b.geolocation_override, b.setting_type, b.setting_power, b.setting_temp_celsius, b.setting_temp_fahrenheit
-            ]);
+                ) VALUES ${placeholders}
+            `, values);
         }
     } else {
         // Always seed new profile with current settings
@@ -338,25 +331,30 @@ async function saveProfileZoneBlocks(homeId, profileId, zoneId, timetableType, b
         [profileId, homeId, zoneId]
     );
 
-    for (const b of blocks) {
-        const dayType = b.dayType;
-        const start = b.start;
-        const end = b.end;
-        const geo = b.geolocationOverride ? 1 : 0;
-        const settingType = b.setting?.type || 'HEATING';
-        const settingPower = b.setting?.power || 'ON';
-        const tempC = b.setting?.temperature?.celsius ?? null;
-        const tempF = b.setting?.temperature?.fahrenheit ?? (tempC !== null ? Math.round((tempC * 9 / 5 + 32) * 10) / 10 : null);
+    if (blocks && blocks.length > 0) {
+        const placeholders = blocks.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+        const values = [];
+        for (const b of blocks) {
+            const dayType = b.dayType;
+            const start = b.start;
+            const end = b.end;
+            const geo = b.geolocationOverride ? 1 : 0;
+            const settingType = b.setting?.type || 'HEATING';
+            const settingPower = b.setting?.power || 'ON';
+            const tempC = b.setting?.temperature?.celsius ?? null;
+            const tempF = b.setting?.temperature?.fahrenheit ?? (tempC !== null ? Math.round((tempC * 9 / 5 + 32) * 10) / 10 : null);
 
+            values.push(
+                profileId, homeId, zoneId, timetableType || 'ONE_DAY', dayType, start, end,
+                geo, settingType, settingPower, tempC, tempF
+            );
+        }
         await pool.execute(`
             INSERT INTO schedule_profile_blocks (
                 profile_id, home_id, zone_id, timetable_type, day_type, start_time, end_time,
                 geolocation_override, setting_type, setting_power, setting_temp_celsius, setting_temp_fahrenheit
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-            profileId, homeId, zoneId, timetableType || 'ONE_DAY', dayType, start, end,
-            geo, settingType, settingPower, tempC, tempF
-        ]);
+            ) VALUES ${placeholders}
+        `, values);
     }
 }
 
@@ -371,77 +369,96 @@ async function saveProfileZoneBlocks(homeId, profileId, zoneId, timetableType, b
  */
 async function activateScheduleProfile(homeId, profileId, opts = {}) {
     const pool = getPool();
-    const [pRows] = await pool.execute(
-        'SELECT * FROM schedule_profiles WHERE id = ? AND home_id = ?',
-        [profileId, homeId]
-    );
-    if (pRows.length === 0) throw new Error('Profile not found');
-    const profile = pRows[0];
+    const conn = await pool.getConnection();
 
-    // Fetch all blocks stored for this profile
-    const [profileBlocks] = await pool.execute(
-        'SELECT * FROM schedule_profile_blocks WHERE profile_id = ? AND home_id = ?',
-        [profileId, homeId]
-    );
+    let profile;
+    try {
+        await conn.beginTransaction();
 
-    // Group blocks by zone_id
-    const blocksByZone = new Map();
-    for (const b of profileBlocks) {
-        if (!blocksByZone.has(b.zone_id)) {
-            blocksByZone.set(b.zone_id, {
-                timetableType: b.timetable_type || 'ONE_DAY',
-                blocks: []
-            });
-        }
-        blocksByZone.get(b.zone_id).blocks.push(b);
-    }
-
-    // Apply to each zone
-    for (const [zoneId, zoneData] of blocksByZone.entries()) {
-        const ttType = zoneData.timetableType;
-
-        // Ensure timetable exists for this type
-        let [ttRows] = await pool.execute(
-            'SELECT id FROM zone_timetables WHERE zone_id = ? AND home_id = ? AND type = ?',
-            [zoneId, homeId, ttType]
+        const [pRows] = await conn.execute(
+            'SELECT * FROM schedule_profiles WHERE id = ? AND home_id = ? FOR UPDATE',
+            [profileId, homeId]
         );
-        let internalTtId;
-        if (ttRows.length === 0) {
-            const [insertRes] = await pool.execute(
-                'INSERT INTO zone_timetables (zone_id, home_id, type, is_active) VALUES (?, ?, ?, 1)',
+        if (pRows.length === 0) throw new Error('Profile not found');
+        profile = pRows[0];
+
+        // Fetch all blocks stored for this profile
+        const [profileBlocks] = await conn.execute(
+            'SELECT * FROM schedule_profile_blocks WHERE profile_id = ? AND home_id = ?',
+            [profileId, homeId]
+        );
+
+        // Group blocks by zone_id
+        const blocksByZone = new Map();
+        for (const b of profileBlocks) {
+            if (!blocksByZone.has(b.zone_id)) {
+                blocksByZone.set(b.zone_id, {
+                    timetableType: b.timetable_type || 'ONE_DAY',
+                    blocks: []
+                });
+            }
+            blocksByZone.get(b.zone_id).blocks.push(b);
+        }
+
+        // Apply to each zone
+        for (const [zoneId, zoneData] of blocksByZone.entries()) {
+            const ttType = zoneData.timetableType;
+
+            // Ensure timetable exists for this type
+            let [ttRows] = await conn.execute(
+                'SELECT id FROM zone_timetables WHERE zone_id = ? AND home_id = ? AND type = ?',
                 [zoneId, homeId, ttType]
             );
-            internalTtId = insertRes.insertId;
-        } else {
-            internalTtId = ttRows[0].id;
+            let internalTtId;
+            if (ttRows.length === 0) {
+                const [insertRes] = await conn.execute(
+                    'INSERT INTO zone_timetables (zone_id, home_id, type, is_active) VALUES (?, ?, ?, 1)',
+                    [zoneId, homeId, ttType]
+                );
+                internalTtId = insertRes.insertId;
+            } else {
+                internalTtId = ttRows[0].id;
+            }
+
+            // Deactivate other timetables for this zone and activate this one
+            await conn.execute('UPDATE zone_timetables SET is_active = 0 WHERE zone_id = ? AND home_id = ?', [zoneId, homeId]);
+            await conn.execute('UPDATE zone_timetables SET is_active = 1 WHERE id = ?', [internalTtId]);
+
+            // Replace schedule blocks for this timetable
+            await conn.execute('DELETE FROM schedule_blocks WHERE timetable_id = ?', [internalTtId]);
+
+            if (zoneData.blocks.length > 0) {
+                const placeholders = zoneData.blocks.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+                const values = [];
+                for (const b of zoneData.blocks) {
+                    values.push(
+                        internalTtId, homeId, b.day_type, b.start_time, b.end_time,
+                        b.geolocation_override, b.setting_type, b.setting_power, b.setting_temp_celsius, b.setting_temp_fahrenheit
+                    );
+                }
+                await conn.execute(`
+                    INSERT INTO schedule_blocks (
+                        timetable_id, home_id, day_type, start_time, end_time,
+                        geolocation_override, setting_type, setting_power, setting_temp_celsius, setting_temp_fahrenheit
+                    ) VALUES ${placeholders}
+                `, values);
+            }
+
+            await conn.execute('UPDATE zones SET last_schedule_change_at = NOW() WHERE id = ? AND home_id = ?', [zoneId, homeId]);
         }
 
-        // Deactivate other timetables for this zone and activate this one
-        await pool.execute('UPDATE zone_timetables SET is_active = 0 WHERE zone_id = ? AND home_id = ?', [zoneId, homeId]);
-        await pool.execute('UPDATE zone_timetables SET is_active = 1 WHERE id = ?', [internalTtId]);
+        // Update active profile state
+        await conn.execute('UPDATE schedule_profiles SET is_active = 0 WHERE home_id = ?', [homeId]);
+        await conn.execute('UPDATE schedule_profiles SET is_active = 1 WHERE id = ? AND home_id = ?', [profileId, homeId]);
+        await conn.execute('UPDATE homes SET active_schedule_profile_id = ? WHERE id = ?', [profileId, homeId]);
 
-        // Replace schedule blocks for this timetable
-        await pool.execute('DELETE FROM schedule_blocks WHERE timetable_id = ?', [internalTtId]);
-
-        for (const b of zoneData.blocks) {
-            await pool.execute(`
-                INSERT INTO schedule_blocks (
-                    timetable_id, home_id, day_type, start_time, end_time,
-                    geolocation_override, setting_type, setting_power, setting_temp_celsius, setting_temp_fahrenheit
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [
-                internalTtId, homeId, b.day_type, b.start_time, b.end_time,
-                b.geolocation_override, b.setting_type, b.setting_power, b.setting_temp_celsius, b.setting_temp_fahrenheit
-            ]);
-        }
-
-        await pool.execute('UPDATE zones SET last_schedule_change_at = NOW() WHERE id = ? AND home_id = ?', [zoneId, homeId]);
+        await conn.commit();
+    } catch (err) {
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
     }
-
-    // Update active profile state
-    await pool.execute('UPDATE schedule_profiles SET is_active = 0 WHERE home_id = ?', [homeId]);
-    await pool.execute('UPDATE schedule_profiles SET is_active = 1 WHERE id = ? AND home_id = ?', [profileId, homeId]);
-    await pool.execute('UPDATE homes SET active_schedule_profile_id = ? WHERE id = ?', [profileId, homeId]);
 
     // Publish MQTT telemetry if mqttPublisher is available
     try {
@@ -500,7 +517,6 @@ async function evaluateAutoScheduleProfiles(homeId, overrideDateStr = null) {
 }
 
 module.exports = {
-    isDateInRange,
     getScheduleProfiles,
     getScheduleProfileDetails,
     createScheduleProfile,
