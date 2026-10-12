@@ -334,6 +334,12 @@ async function handleMessage(ws, message, isBinary, isDownlink = false) {
     const session2048 = coap.optionFirst(coapMsg, coap.OPT_VENDOR_2048);
     metrics.inc('uplink_messages');
 
+    if (!isDownlink && activeDeviceId) {
+        if (commandApi && typeof commandApi.drainSleepyDownlink === 'function') {
+            commandApi.drainSleepyDownlink(activeDeviceId);
+        }
+    }
+
     if (!isDownlink && session2048 && !wsToBridgeId.has(ws)) {
         try {
             const [rows] = await db.getPool().execute('SELECT serial_no FROM devices WHERE field_025e = ? LIMIT 1', [session2048]);

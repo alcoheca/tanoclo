@@ -42,6 +42,12 @@ const waitForAck = coapTransport.waitForAck;
 const isDebugMid = coapTransport.isDebugMid;
 const _singleQueryAttempt = coapTransport._singleQueryAttempt;
 const queryDeviceConfig = coapTransport.queryDeviceConfig;
+const isSleepyDevice = coapTransport.isSleepyDevice;
+const isDeviceAwake = coapTransport.isDeviceAwake;
+const queueSleepyDownlink = coapTransport.queueSleepyDownlink;
+const drainSleepyDownlink = coapTransport.drainSleepyDownlink;
+const recordDeviceActivity = coapTransport.recordDeviceActivity;
+const getSleepyQueue = coapTransport.getSleepyQueue;
 
 async function internalPush(deviceId, clientInfo, code, path, payload = Buffer.alloc(0), etag = null, customOptions = []) {
     const mid = getNextMid();
@@ -126,6 +132,27 @@ async function internalPushViabridge(deviceId, code, path, payload = Buffer.allo
     const coapBytes = coap.buildRequest({
         code, path, token: pushToken, mid, type, payload, extraOptions
     });
+
+    const isQueueable = !path.includes('pair') && (
+        path.includes('config') ||
+        path.endsWith('/lock') ||
+        path === 'd/lock' ||
+        path.startsWith('d/')
+    );
+
+    if (isSleepyDevice(deviceId) && !isDeviceAwake(deviceId) && isQueueable) {
+        queueSleepyDownlink(deviceId, {
+            bridgeId: bridge.bridgeId,
+            bridgeClient: bridge.bridgeClient,
+            targetIpv6: dbDev.ipv6_address,
+            targetPort: dbDev.udp_port || 5683,
+            coapBytes,
+            commandLabel: commandLabel || `push:${path}`,
+            path,
+            mid
+        });
+        return mid;
+    }
 
     sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dbDev.ipv6_address, dbDev.udp_port || 5683, coapBytes, commandLabel || `push:${path}`);
     return mid;
@@ -845,6 +872,7 @@ module.exports = {
     sortConfigFields, sortZoneStateFields, getCommandStatus, getCommandHistory,
     jsonResponse, handleGetClients, handleSend, handleSendRaw, handleCircuitConfig,
     handleZoneConfig, pushBoilerMaxFlowTemp, handleMetrics,
+    isSleepyDevice, isDeviceAwake, queueSleepyDownlink, drainSleepyDownlink, recordDeviceActivity, getSleepyQueue,
     _clients, _db, _log, _sendFn, _broadcastTime
 };
 

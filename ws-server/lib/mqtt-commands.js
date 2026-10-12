@@ -71,10 +71,13 @@ function init(_mqttClient, _db, _commandApi, _mqttPublisher, _log, _onStateChang
         `).then(([devs]) => {
             for (const dev of devs) {
                 if (dev.field_012d != null || dev.field_0135 != null) {
+                    const isRu = (dev.serial_no && dev.serial_no.startsWith('RU')) || dev.device_type === 'RU02';
+                    const rawMv = dev.field_0162 != null && dev.field_0162 > 0 ? parseInt(dev.field_0162, 10) : (isRu ? 4500 : 3000);
+                    const validMv = (isRu && rawMv < 3600) ? 4500 : rawMv;
                     emulatedStates.set(dev.serial_no, {
                         temp_celsius: dev.field_012d != null ? parseFloat(dev.field_012d) : 21.5,
                         humidity_percent: dev.field_0135 != null ? parseFloat(dev.field_0135) : 50.0,
-                        battery_mv: dev.field_0162 != null && dev.field_0162 > 0 ? parseInt(dev.field_0162, 10) : 4500
+                        battery_mv: validMv
                     });
                 }
             }
@@ -752,7 +755,7 @@ function dispatchEsp32Telemetry(dev, serial, state, attempt = 0) {
             params: {
                 temp_celsius: state.temp_celsius,
                 humidity_percent: state.humidity_percent,
-                battery_mv: state.battery_mv
+                battery_mv: (serial.startsWith('RU') && (!state.battery_mv || state.battery_mv < 3600)) ? 4500 : (state.battery_mv || 4500)
             }
         });
 

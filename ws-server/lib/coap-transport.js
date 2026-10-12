@@ -22,6 +22,10 @@ const _pendingCommands = new Map();
 const _pendingQueries = new Map();
 const _ackCallbacks = new Map();
 const _tanocloMids = new Map(); // mid -> timestamp
+const _sleepyDownlinkQueue = new Map(); // deviceId -> Map(pathKey -> queueItem)
+const _deviceLastSeen = new Map(); // deviceId -> timestamp
+const SLEEPY_AWAKE_WINDOW_MS = 4000;
+const QUEUE_TTL_MS = 2 * 60 * 60 * 1000;
 
 const RETRY_INTERVALS = [6000, 13000, 26000, 50000, 90000];
 const QUERY_TIMEOUT_MS = 5000;
@@ -259,6 +263,8 @@ function clearPendingRetries() {
     _pendingQueries.clear();
     _ackCallbacks.clear();
     _tanocloMids.clear();
+    _sleepyDownlinkQueue.clear();
+    _deviceLastSeen.clear();
     if (_tanocloMidsSweepInterval) {
         clearInterval(_tanocloMidsSweepInterval);
         _tanocloMidsSweepInterval = null;
@@ -408,6 +414,80 @@ function isDebugMid(mid) {
     return false;
 }
 
+function isSleepyDevice(deviceId) {
+    if (!deviceId || typeof deviceId !== 'string') return false;
+    return deviceId.toUpperCase().startsWith('VA');
+}
+
+function recordDeviceActivity(deviceId) {
+    if (!deviceId) return;
+    _deviceLastSeen.set(deviceId, Date.now());
+}
+
+function isDeviceAwake(deviceId) {
+    if (!deviceId) return false;
+    const last = _deviceLastSeen.get(deviceId);
+    if (last && (Date.now() - last < SLEEPY_AWAKE_WINDOW_MS)) {
+        return true;
+    }
+    if (_clients && _clients.has(deviceId)) {
+        const info = _clients.get(deviceId);
+        if (info && info.lastMessageAt) {
+            const diff = Date.now() - new Date(info.lastMessageAt).getTime();
+            if (diff >= 0 && diff < SLEEPY_AWAKE_WINDOW_MS) return true;
+        }
+    }
+    return false;
+}
+
+function queueSleepyDownlink(deviceId, item) {
+    if (!deviceId || !item) return;
+    if (!_sleepyDownlinkQueue.has(deviceId)) {
+        _sleepyDownlinkQueue.set(deviceId, new Map());
+    }
+    const devQueue = _sleepyDownlinkQueue.get(deviceId);
+    const pathKey = item.path || 'default';
+    _log('info', `[cmd-api] Device ${deviceId} is sleeping. Queuing downlink command for /${pathKey} (MID=${item.mid})`);
+    devQueue.set(pathKey, {
+        ...item,
+        enqueuedAt: Date.now()
+    });
+}
+
+function drainSleepyDownlink(deviceId) {
+    if (!deviceId) return;
+    recordDeviceActivity(deviceId);
+    const devQueue = _sleepyDownlinkQueue.get(deviceId);
+    if (!devQueue || devQueue.size === 0) return;
+
+    _sleepyDownlinkQueue.delete(deviceId);
+    _log('info', `[cmd-api] Device ${deviceId} woke up. Draining ${devQueue.size} queued downlink command(s)...`);
+
+    setTimeout(() => {
+        let delay = 0;
+        for (const [pathKey, item] of devQueue.entries()) {
+            if (Date.now() - item.enqueuedAt > QUEUE_TTL_MS) {
+                _log('warn', `[cmd-api] Dropping expired queued downlink command for ${deviceId} /${pathKey}`);
+                continue;
+            }
+            setTimeout(() => {
+                _log('info', `[cmd-api] Dispatching queued downlink to ${deviceId}: /${pathKey} (MID=${item.mid})`);
+                try {
+                    sendViaBridge(item.bridgeId, item.bridgeClient, item.targetIpv6, item.targetPort, item.coapBytes, item.commandLabel);
+                } catch (err) {
+                    _log('error', `[cmd-api] Error dispatching queued downlink to ${deviceId}: ${err.message}`);
+                }
+            }, delay);
+            delay += 150;
+        }
+    }, 120);
+}
+
+function getSleepyQueue(deviceId) {
+    if (deviceId) return _sleepyDownlinkQueue.get(deviceId) || null;
+    return _sleepyDownlinkQueue;
+}
+
 module.exports = {
     init,
     getProxyMidCache,
@@ -422,5 +502,11 @@ module.exports = {
     _singleQueryAttempt,
     queryDeviceConfig,
     _commandTracker,
-    isDebugMid
+    isDebugMid,
+    isSleepyDevice,
+    recordDeviceActivity,
+    isDeviceAwake,
+    queueSleepyDownlink,
+    drainSleepyDownlink,
+    getSleepyQueue
 };

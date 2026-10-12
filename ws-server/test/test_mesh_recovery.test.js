@@ -98,14 +98,15 @@ describe('mesh-recovery module', () => {
         expect(meshRecovery._deviceLinkLossMap.has(TEST_VA_SERIAL)).toBe(false);
     });
 
-    test('checkFallbackEscalation escalates to reboot after 2 failed probes', async () => {
+    test('checkFallbackEscalation suppresses reboot escalation when auto-reboot is disabled', async () => {
         const key = `${TEST_HOME_ID}:${TEST_ZONE_ID}`;
         await meshRecovery.onZoneFallback(TEST_HOME_ID, TEST_ZONE_ID, 3);
         const rec = meshRecovery._activeFallbacks.get(key);
         rec.probeAttempts = 2; // Simulate 2 probes failed
 
         await meshRecovery.checkFallbackEscalation();
-        expect(rebootedDevices).toContain(TEST_VA_SERIAL);
+        // Auto-reboot escalation is disabled to prevent battery drain and motor homing loops
+        expect(rebootedDevices.length).toBe(0);
     });
 
     test('runProactiveKeepAlive probes inactive devices > 12 minutes', async () => {
