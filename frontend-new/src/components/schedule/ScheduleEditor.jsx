@@ -7,7 +7,7 @@
  * "Away" (setting parameters like ECO/COMFORT preheating curves and minimum away temperatures).
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import useSWR from 'swr';
 import { useTranslation } from 'react-i18next';
 import { useHome } from '../../context/HomeContext';
@@ -68,6 +68,8 @@ export default function ScheduleEditor({ zoneId }) {
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
   const [selectedZones, setSelectedZones] = useState({});
   const [isCopying, setIsCopying] = useState(false);
+  const [isSavingBlocks, setIsSavingBlocks] = useState(false);
+  const savingBlocksRef = useRef(false);
 
   const handleCopyScheduleToZones = async () => {
     const targetZoneIds = Object.keys(selectedZones)
@@ -411,6 +413,9 @@ export default function ScheduleEditor({ zoneId }) {
 
   // Save Day Blocks list to Backend API
   const saveDayBlocks = async (dayType, newDayBlocks) => {
+    if (savingBlocksRef.current) return;
+    savingBlocksRef.current = true;
+    setIsSavingBlocks(true);
     try {
       const response = await updateDayBlocks(activeHomeId, zoneId, activeTimetableId, dayType, newDayBlocks);
       // Replace only this day's blocks in local state
@@ -421,6 +426,9 @@ export default function ScheduleEditor({ zoneId }) {
       showToast(t('schedule.schedule_saved_success'), 'success');
     } catch (_err) {
       showToast(t('schedule.schedule_saved_failed'), 'error');
+    } finally {
+      savingBlocksRef.current = false;
+      setIsSavingBlocks(false);
     }
   };
 
@@ -583,12 +591,14 @@ export default function ScheduleEditor({ zoneId }) {
                       {/* Add Block */}
                       <button
                         onClick={() => handleAddBlock(dt)}
+                        disabled={isSavingBlocks}
                         style={{
                           padding: '4px 8px',
                           borderRadius: '4px',
                           border: '1px solid var(--border-color)',
                           backgroundColor: 'var(--bg-card-hover)',
-                          cursor: 'pointer',
+                          cursor: isSavingBlocks ? 'not-allowed' : 'pointer',
+                          opacity: isSavingBlocks ? 0.6 : 1,
                           fontSize: '0.75rem',
                           fontWeight: 600,
                           display: 'flex',
@@ -623,12 +633,14 @@ export default function ScheduleEditor({ zoneId }) {
                       {copyBuffer && (
                         <button
                           onClick={() => handlePasteDay(dt)}
+                          disabled={isSavingBlocks}
                           style={{
                             padding: '4px 8px',
                             borderRadius: '4px',
                             border: '1px solid var(--primary)',
                             backgroundColor: 'var(--primary-glow)',
-                            cursor: 'pointer',
+                            cursor: isSavingBlocks ? 'not-allowed' : 'pointer',
+                            opacity: isSavingBlocks ? 0.6 : 1,
                             display: 'flex',
                             alignItems: 'center',
                             color: 'var(--primary-light)'
@@ -786,7 +798,7 @@ export default function ScheduleEditor({ zoneId }) {
                   <Button
                     variant="destructive"
                     onClick={handleDeleteBlock}
-                    disabled={getBlocksForDay(editingDayType).length <= 1}
+                    disabled={isSavingBlocks || getBlocksForDay(editingDayType).length <= 1}
                     style={{ flexShrink: 0 }}
                   >
                     <Trash2 size={16} />
@@ -794,6 +806,7 @@ export default function ScheduleEditor({ zoneId }) {
                   <Button
                     variant="secondary"
                     onClick={() => setEditingBlock(null)}
+                    disabled={isSavingBlocks}
                     style={{ flex: 1 }}
                   >
                     {t('common.cancel')}
@@ -801,6 +814,7 @@ export default function ScheduleEditor({ zoneId }) {
                   <Button
                     variant="primary"
                     onClick={handleSaveBlockEdit}
+                    disabled={isSavingBlocks}
                     style={{ flex: 1 }}
                   >
                     {t('common.save')}

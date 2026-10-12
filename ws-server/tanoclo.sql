@@ -25004,6 +25004,7 @@ ALTER TABLE `oauth_sessions`
 
 ALTER TABLE `schedule_blocks`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_schedule_block` (`timetable_id`,`home_id`,`day_type`,`start_time`),
   ADD KEY `timetable_id` (`timetable_id`),
   ADD KEY `idx_home_id` (`home_id`);
 
@@ -25040,6 +25041,7 @@ ALTER TABLE `zone_overlays`
 
 ALTER TABLE `zone_timetables`
   ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uq_zone_timetable` (`zone_id`,`home_id`,`type`),
   ADD KEY `idx_home_id` (`home_id`),
   ADD KEY `idx_zone_home` (`zone_id`,`home_id`);
 

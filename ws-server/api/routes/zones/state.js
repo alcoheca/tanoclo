@@ -12,6 +12,8 @@ const { getLogger } = require('../../../lib/logger');
 const commandApi = require('../../../lib/command-api');
 const { mapDevice } = require('../../../lib/mappers');
 const { parseUtcDate, getLocalParts, parseLocalTimeInTimezone, getDayBoundsInTimezone } = require('../../../lib/utils');
+const { overlayModeFor } = require('../../../lib/overlay-codes');
+const mqttPublisher = require('../../../lib/mqtt-publisher');
 const {
     checkZoneConfigReadonly,
     formatDate,
@@ -247,13 +249,24 @@ router.delete('/:homeId/zoneStates', async (req, res) => {
 });
 
 async function copySchedule(homeId, zoneId, targetZoneIds) {
-    if (targetZoneIds.length === 0) throw new Error('No target zones provided');
+    if (!targetZoneIds || targetZoneIds.length === 0) throw new Error('No target zones provided');
+
+    // Deduplicate and sort all involved zone IDs to prevent deadlocks and race conditions
+    const targetSet = [...new Set(targetZoneIds.map(Number))].filter(id => id !== Number(zoneId));
+    if (targetSet.length === 0) return;
+
+    const allZoneIds = [...new Set([Number(zoneId), ...targetSet])].sort((a, b) => a - b);
 
     const pool = db.getPool();
     const connection = await pool.getConnection();
 
     try {
         await connection.beginTransaction();
+
+        // Lock all affected zone rows in deterministic order
+        for (const zid of allZoneIds) {
+            await connection.execute('SELECT id FROM zones WHERE id = ? AND home_id = ? FOR UPDATE', [zid, homeId]);
+        }
 
         const [sourceTTs] = await connection.execute('SELECT * FROM zone_timetables WHERE zone_id = ? AND home_id = ?', [zoneId, homeId]);
         const sourceBlocksData = {};
@@ -263,7 +276,7 @@ async function copySchedule(homeId, zoneId, targetZoneIds) {
             sourceBlocksData[st.type] = { blocks, is_active: st.is_active };
         }
 
-        for (const targetId of targetZoneIds) {
+        for (const targetId of targetSet) {
             for (const [type, info] of Object.entries(sourceBlocksData)) {
                 const [targetTTs] = await connection.execute('SELECT id FROM zone_timetables WHERE zone_id = ? AND home_id = ? AND type = ?', [targetId, homeId, type]);
                 let targetTTId;
@@ -295,7 +308,7 @@ async function copySchedule(homeId, zoneId, targetZoneIds) {
 
         await connection.commit();
     } catch (err) {
-        await connection.rollback();
+        await connection.rollback().catch(() => {});
         throw err;
     } finally {
         connection.release();
@@ -478,11 +491,10 @@ async function applyOverlay(homeId, zoneId, setting, termination, pool) {
             [zoneId, homeId, settingType, settingPower, settingTempC, settingTempF, termType, termDuration, termExpiry]
         );
 
-        const overlayMode = (termType === 'TIMER' || termType === 'NEXT_TIME_BLOCK') ? 3 : 2;
         const hasSetpoint = settingPower === 'ON' ? (settingTempC != null ? 1 : 0) : 0;
         const ovrTemp = settingPower === 'ON' ? settingTempC : null;
         await db.insertMergedZoneMeasurement(homeId, zoneId, {
-            '0x6240': settingPower === 'ON' ? overlayMode : 1,
+            '0x6240': overlayModeFor({ power: settingPower, terminationType: termType, isHotWater: false }),
             '0x6260': hasSetpoint,
             '0x6280': ovrTemp,
             '0x6440': termType === 'TIMER' ? 1 : null
@@ -498,6 +510,10 @@ async function applyOverlay(homeId, zoneId, setting, termination, pool) {
         } catch (sseErr) {
             _log('warn', `Failed to broadcast zone-state SSE for Zone ${zoneId}: ${sseErr.message}`);
         }
+
+        await mqttPublisher.publishLatestZoneState(homeId, zoneId).catch(err => {
+            _log('warn', `Failed to publish zone state to MQTT for Zone ${zoneId}: ${err.message}`);
+        });
     } catch (err) {
         _log('error', `[zones-api] applyOverlay failed for Zone ${zoneId}: ${err.message}`);
         throw err;
@@ -524,6 +540,10 @@ async function removeOverlay(homeId, zoneId, pool) {
     } catch (sseErr) {
         _log('warn', `Failed to broadcast zone-state SSE for Zone ${zoneId}: ${sseErr.message}`);
     }
+
+    await mqttPublisher.publishLatestZoneState(homeId, zoneId).catch(err => {
+        _log('warn', `Failed to publish zone state to MQTT for Zone ${zoneId}: ${err.message}`);
+    });
 }
 
 module.exports = router;

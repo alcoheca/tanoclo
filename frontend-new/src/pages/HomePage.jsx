@@ -146,7 +146,10 @@ export default function HomePage() {
     return s && !!s.overlay;
   });
 
+  const [isPresenceChanging, setIsPresenceChanging] = useState(false);
+
   const handleBoostAll = async () => {
+    if (isBulkActionLoading) return;
     setIsBulkActionLoading(true);
     try {
       const storedBoost = parseFloat(localStorage.getItem(STORAGE_KEYS.BOOST_TEMPERATURE));
@@ -177,6 +180,7 @@ export default function HomePage() {
   };
 
   const handleTurnOffAll = async () => {
+    if (isBulkActionLoading) return;
     setIsBulkActionLoading(true);
     try {
       const overlayList = zoneList.map(z => {
@@ -204,6 +208,7 @@ export default function HomePage() {
   };
 
   const handleClearAllOverlays = async () => {
+    if (isBulkActionLoading) return;
     setIsBulkActionLoading(true);
     try {
       await resumeHomeSchedule(activeHomeId);
@@ -220,6 +225,8 @@ export default function HomePage() {
     : 'AUTO';
 
   const handlePresenceModeChange = async (mode) => {
+    if (isPresenceChanging) return;
+    setIsPresenceChanging(true);
     try {
       if (mode === 'AUTO') {
         await releaseHomePresenceLock(activeHomeId);
@@ -229,6 +236,8 @@ export default function HomePage() {
       await refreshAll();
     } catch (err) {
       logger.error('Failed to change presence mode:', err);
+    } finally {
+      setIsPresenceChanging(false);
     }
   };
 
