@@ -6,6 +6,7 @@
 'use strict';
 
 const { getLocalParts, parseLocalTimeInTimezone } = require('./utils');
+const { overlayModeFor, parsePresetCommand } = require('./overlay-codes');
 
 let mqttClient = null;
 let db = null;
@@ -217,8 +218,7 @@ async function handleCommand(topic, payload) {
 
                 await applyOverlayMqtt(homeId, zoneId, zoneType, setting, termination);
 
-                const overlayModeMap = { 'TIMER': 1, 'NEXT_TIME_BLOCK': 2, 'TADO_MODE': 2, 'MANUAL': 3 };
-                const overlayModeInt = overlayModeMap[termType] || 3;
+                const overlayModeInt = overlayModeFor({ power: 'ON', terminationType: termType });
 
                 await db.insertMergedZoneMeasurement(homeId, zoneId, {
                     '0x6240': overlayModeInt,
@@ -274,8 +274,7 @@ async function handleCommand(topic, payload) {
 
                     await applyOverlayMqtt(homeId, zoneId, zoneType, setting, termination);
 
-                    const overlayModeMap = { 'TIMER': 1, 'NEXT_TIME_BLOCK': 2, 'TADO_MODE': 2, 'MANUAL': 3 };
-                    const overlayModeInt = overlayModeMap[defaultType] || 3;
+                    const overlayModeInt = overlayModeFor({ power: 'OFF', terminationType: defaultType, isHotWater: zoneType !== 'HEATING' });
 
                     await db.insertMergedZoneMeasurement(homeId, zoneId, {
                         '0x61e0': 0,
@@ -317,8 +316,7 @@ async function handleCommand(topic, payload) {
 
                     await applyOverlayMqtt(homeId, zoneId, zoneType, setting, termination);
 
-                    const overlayModeMap = { 'TIMER': 1, 'NEXT_TIME_BLOCK': 2, 'TADO_MODE': 2, 'MANUAL': 3 };
-                    const overlayModeInt = overlayModeMap[targetType] || 3;
+                    const overlayModeInt = overlayModeFor({ power: 'ON', terminationType: targetType });
 
                     await db.insertMergedZoneMeasurement(homeId, zoneId, {
                         '0x61e0': 1,
@@ -355,8 +353,7 @@ async function handleCommand(topic, payload) {
 
                     await applyOverlayMqtt(homeId, zoneId, zoneType, setting, termination);
 
-                    const overlayModeMap = { 'TIMER': 1, 'NEXT_TIME_BLOCK': 2, 'MANUAL': 3 };
-                    const overlayModeInt = overlayModeMap[type] || 3;
+                    const overlayModeInt = overlayModeFor({ power: 'ON', terminationType: type });
 
                     await db.insertMergedZoneMeasurement(homeId, zoneId, {
                         '0x6240': overlayModeInt,
@@ -397,8 +394,12 @@ async function handleCommand(topic, payload) {
                 }
 
             } else if (command === 'overlay_mode' || command === 'preset_mode') {
-                const rawMode = String(payload).trim().toUpperCase();
-                if (rawMode === 'SCHEDULE' || rawMode === 'AUTO') {
+                const parsedPreset = parsePresetCommand(payload);
+                if (parsedPreset === null) {
+                    if (log) log('warn', `[mqtt-commands] Ignoring unknown preset "${payload}" for zone ${zoneId}`);
+                    return;
+                }
+                if (parsedPreset === 'SCHEDULE') {
                     await pool.execute('DELETE FROM zone_overlays WHERE zone_id = ? AND home_id = ?', [zoneId, homeId]);
 
                     const currentBlock = await db.getCurrentScheduleBlock(homeId, zoneId);
@@ -420,7 +421,7 @@ async function handleCommand(topic, payload) {
                     _pub(`tado/tanoclo/h/${homeId}/z/${zoneId}/target_temperature`, targetTemp);
 
                 } else {
-                    const mappedType = (rawMode === 'NEXT_BLOCK' || rawMode === 'NEXT_TIME_BLOCK' || rawMode === 'TADO_MODE') ? 'TADO_MODE' : (rawMode === 'TIMER' ? 'TIMER' : 'MANUAL');
+                    const mappedType = parsedPreset === 'NEXT_BLOCK' ? 'TADO_MODE' : parsedPreset;
 
                     const [ovr] = await pool.execute('SELECT * FROM zone_overlays WHERE zone_id = ? AND home_id = ?', [zoneId, homeId]);
                     const [zRows] = await pool.execute('SELECT default_overlay_duration FROM zones WHERE id = ? AND home_id = ?', [zoneId, homeId]);
@@ -446,8 +447,7 @@ async function handleCommand(topic, payload) {
 
                     await applyOverlayMqtt(homeId, zoneId, zoneType, setting, termination);
 
-                    const overlayModeMap = { 'TIMER': 1, 'TADO_MODE': 2, 'NEXT_BLOCK': 2, 'MANUAL': 3 };
-                    const overlayModeInt = overlayModeMap[mappedType] || 3;
+                    const overlayModeInt = overlayModeFor({ power: 'ON', terminationType: mappedType });
 
                     await db.insertMergedZoneMeasurement(homeId, zoneId, {
                         '0x6240': overlayModeInt,

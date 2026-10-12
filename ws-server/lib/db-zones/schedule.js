@@ -219,6 +219,11 @@ async function getZoneScheduleState(homeId, zoneId, presenceMode) {
             // For DHW, if temperature is null in block (OFF state), 
             // fallback to a reasonable setpoint (60.0) from the schedule context
             if (targetTemp === null) targetTemp = 60.0;
+        } else if (block.setting.power === 'OFF') {
+            // A heating block that is OFF has no setpoint. Report it disabled so pushes
+            // do not fall back to a default target and make the valve call for heat.
+            enabled = 0;
+            targetTemp = null;
         }
     } else {
         // Fallback constants

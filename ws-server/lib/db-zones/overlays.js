@@ -31,6 +31,7 @@ const getHome = dbHomes.getHome;
 const getHomeState = dbHomes.getHomeState;
 
 const { insertMergedZoneMeasurement } = require('./state');
+const { OVERLAY_MODE, overlayModeFor } = require('../overlay-codes');
 
 async function getZoneOverlay(homeId, zoneId) {
     if (!homeId) throw new Error('homeId is required for getZoneOverlay');
@@ -39,24 +40,53 @@ async function getZoneOverlay(homeId, zoneId) {
     return rows.length > 0 ? rows[0] : null;
 }
 
+/**
+ * Store an overlay reported by a valve (PUT z/{id}/overlay or z/{id}/s).
+ *
+ * The report carries the overlay mode (0x6240), a setpoint and a has-setpoint flag, but neither the
+ * termination type nor an expiry. So:
+ *  - mode OFF (1) is stored as power OFF with no setpoint (it used to be stored as power ON);
+ *  - if the report matches the overlay already stored (the valve echoing what we sent), keep that
+ *    row's termination type, duration and expiry;
+ *  - otherwise it is a new overlay: manual, with no expiry (never carry over a previous overlay's expiry).
+ */
 async function upsertZoneOverlay(homeId, zoneId, mode, temp, hasSetpoint) {
     const p = getPool();
-    const settingType = "HEATING";
-    const settingPower = (mode === 1) ? "OFF" : "ON";
-    const settingTempC = (settingPower === 'ON' && hasSetpoint && temp !== null) ? temp : null;
-    const settingTempF = (settingTempC !== null) ? parseFloat((settingTempC * 1.8 + 32).toFixed(2)) : null;
+    const isOff = Number(mode) === OVERLAY_MODE.OFF;
+    const hasTemp = !isOff && hasSetpoint && temp !== null && temp !== undefined;
+    const settingPower = isOff ? 'OFF' : 'ON';
+    const settingTempC = hasTemp ? temp : null;
+    const settingTempF = hasTemp ? parseFloat((temp * 1.8 + 32).toFixed(2)) : null;
+
+    const [existingRows] = await p.execute(
+        'SELECT setting_type, setting_power, termination_type, termination_duration_seconds, termination_expiry FROM zone_overlays WHERE zone_id = ? AND home_id = ?',
+        [zoneId, homeId]
+    );
+    const existing = existingRows.length > 0 ? existingRows[0] : null;
+    const isEcho = !!existing && overlayModeFor({
+        power: existing.setting_power,
+        terminationType: existing.termination_type,
+        isHotWater: false
+    }) === Number(mode);
+
+    const settingType = (existing && existing.setting_type) || 'HEATING';
+    const termType = isEcho ? existing.termination_type : 'MANUAL';
+    const termDuration = isEcho ? existing.termination_duration_seconds : null;
+    const termExpiry = isEcho ? existing.termination_expiry : null;
 
     await p.execute(
-        `INSERT INTO zone_overlays (zone_id, home_id, setting_type, setting_power, setting_temp_celsius, setting_temp_fahrenheit, termination_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO zone_overlays (zone_id, home_id, setting_type, setting_power, setting_temp_celsius, setting_temp_fahrenheit, termination_type, termination_duration_seconds, termination_expiry)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE 
             home_id = VALUES(home_id), 
             setting_type = VALUES(setting_type), 
             setting_power = VALUES(setting_power), 
             setting_temp_celsius = VALUES(setting_temp_celsius), 
             setting_temp_fahrenheit = VALUES(setting_temp_fahrenheit), 
-            termination_type = VALUES(termination_type)`,
-        [zoneId, homeId, settingType, settingPower, settingTempC, settingTempF, "MANUAL"]
+            termination_type = VALUES(termination_type),
+            termination_duration_seconds = VALUES(termination_duration_seconds),
+            termination_expiry = VALUES(termination_expiry)`,
+        [zoneId, homeId, settingType, settingPower, settingTempC, settingTempF, termType, termDuration, termExpiry]
     );
 }
 

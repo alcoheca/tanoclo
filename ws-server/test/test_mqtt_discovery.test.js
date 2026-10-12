@@ -122,7 +122,7 @@ test('legacy test suite runs successfully', async () => {
           test('Climate target temp command topic matches home-scoped path', climateEntity.payload.temperature_command_topic === 'tado/tanoclo/h/1/z/10/set/target_temperature');
           test('Climate target temp state topic matches home-scoped path', climateEntity.payload.temperature_state_topic === 'tado/tanoclo/h/1/z/10/target_temperature');
           test('Climate preset command topic matches zone-scoped path', climateEntity.payload.preset_mode_command_topic === 'tado/tanoclo/h/1/z/10/set/preset_mode');
-          test('Climate preset modes are SCHEDULE, TIMER, NEXT_BLOCK, MANUAL', Array.isArray(climateEntity.payload.preset_modes) && climateEntity.payload.preset_modes.join(',') === 'SCHEDULE,TIMER,NEXT_BLOCK,MANUAL');
+          test('Climate preset modes are the three readable overlay types (the schedule is HA\'s built-in "none")', Array.isArray(climateEntity.payload.preset_modes) && climateEntity.payload.preset_modes.join(',') === 'For a set time,Until next schedule change,Until cancelled');
           test('Climate modes are auto, heat, off', Array.isArray(climateEntity.payload.modes) && climateEntity.payload.modes.join(',') === 'auto,heat,off');
       }
 
@@ -142,7 +142,7 @@ test('legacy test suite runs successfully', async () => {
       if (dhwClimateEntity) {
           test('DHW climate does NOT contain current_temperature_topic', !dhwClimateEntity.payload.current_temperature_topic);
           test('DHW climate target temp command topic matches zone-scoped path', dhwClimateEntity.payload.temperature_command_topic === 'tado/tanoclo/h/1/z/0/set/target_temperature');
-          test('DHW climate preset modes are SCHEDULE, TIMER, NEXT_BLOCK, MANUAL', Array.isArray(dhwClimateEntity.payload.preset_modes) && dhwClimateEntity.payload.preset_modes.join(',') === 'SCHEDULE,TIMER,NEXT_BLOCK,MANUAL');
+          test('DHW climate preset modes are the three readable overlay types', Array.isArray(dhwClimateEntity.payload.preset_modes) && dhwClimateEntity.payload.preset_modes.join(',') === 'For a set time,Until next schedule change,Until cancelled');
       }
   
       // ═══════════════════════════════════════════
