@@ -127,17 +127,17 @@ function start({ broadcastTime, broadcastRfKey, pushZoneOverlayDelete, pushSched
         }
     }, 5 * 60 * 1000));
 
-    // 10. Mesh Recovery Escalation Check (Every 1 minute)
+    // 11. Mesh Recovery Escalation Check (Every 1 minute)
     _intervals.push(setInterval(() => {
         meshRecovery.checkFallbackEscalation().catch(e => log('debug', `[cron] Fallback escalation error: ${e.message}`));
     }, 60 * 1000));
 
-    // 11. Proactive Route Keep-Alive (Every 15 minutes)
+    // 12. Proactive Route Keep-Alive (Every 15 minutes)
     _intervals.push(setInterval(() => {
         meshRecovery.runProactiveKeepAlive().catch(e => log('debug', `[cron] Keep-alive error: ${e.message}`));
     }, 15 * 60 * 1000));
 
-    // 12. Auto Schedule Profile Check (Every 1 hour)
+    // 13. Auto Schedule Profile Check (Every 1 hour)
     _intervals.push(setInterval(evaluateAllHomesAutoProfiles, 60 * 60 * 1000));
 
     // Prevent cron intervals from keeping the process alive during crash paths

@@ -8309,12 +8309,8 @@ components:
                 type: integer
               timestamp:
                 type: string
-              computed_flow_temp:
-                type: string
-                nullable: true
-              actual_flow_temp:
-                type: string
-                nullable: true
+              flow_temp:
+                type: number
               outside_temp:
                 type: string
                 nullable: true
