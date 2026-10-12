@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-12
+
+- fix: various
+- refactor(emulator): update PID tick and schedule profile evaluation
+- fix(concurrency): add DB unique constraints, frontend click locks, and copySchedule lock ordering
+- feat(overlay): port overlay mode harmonization, presets and atomic schedule locking
+- docs: Align docs and OpenAPI with recent changes
+- feat: Add schedule profiles
+- feat: Add thermodynamic balancing
+- feat: Add queue for commands to sleepy devices
+
 ## [0.7.2] - 2026-10-11
 
 - audit recent changes
