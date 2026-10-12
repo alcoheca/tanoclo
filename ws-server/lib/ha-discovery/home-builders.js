@@ -5,7 +5,7 @@
 
 'use strict';
 
-function buildHomeDiscovery(publishEntity, homes) {
+function buildHomeDiscovery(publishEntity, homes, profilesByHome = new Map()) {
     for (const home of homes) {
         const homeDev = {
             identifiers: [`tanoclo_home_${home.id}`],
@@ -13,6 +13,20 @@ function buildHomeDiscovery(publishEntity, homes) {
             manufacturer: 'TaNoClo (Tado)',
             model: 'Home'
         };
+
+        const profileOptions = (profilesByHome.get && profilesByHome.get(home.id)) || ['Autumn', 'Winter', 'Spring', 'Holiday'];
+
+        // Schedule Profile Select
+        publishEntity('select', `tanoclo_h${home.id}_schedule_profile`, {
+            unique_id: `tanoclo_h${home.id}_schedule_profile`,
+            name: 'Heating Schedule Profile',
+            icon: 'mdi:calendar-sync',
+            state_topic: `tado/tanoclo/h/${home.id}/schedule_profile`,
+            command_topic: `tado/tanoclo/h/${home.id}/set/schedule_profile`,
+            options: profileOptions.length > 0 ? profileOptions : ['Default'],
+            availability_topic: 'tado/tanoclo/status',
+            device: homeDev
+        });
 
         // Presence Select
         publishEntity('select', `tanoclo_h${home.id}_presence`, {

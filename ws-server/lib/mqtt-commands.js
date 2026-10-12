@@ -114,6 +114,20 @@ async function handleCommand(topic, payload) {
                 const isAway = String(payload).toUpperCase() === 'AWAY';
                 await presenceHelper.setManualPresenceLock(homeId, isAway ? 'AWAY' : 'HOME');
             }
+        } else if (command === 'schedule_profile') {
+            const dbScheduleProfiles = require('./db-schedule-profiles');
+            const target = String(payload).trim();
+            // Look up by name or numeric id
+            const [pRows] = await pool.execute(
+                'SELECT id FROM schedule_profiles WHERE home_id = ? AND (name = ? OR id = ?) LIMIT 1',
+                [homeId, target, isNaN(parseInt(target, 10)) ? -1 : parseInt(target, 10)]
+            );
+            if (pRows.length > 0) {
+                await dbScheduleProfiles.activateScheduleProfile(homeId, pRows[0].id);
+                if (log) log('info', `[mqtt-commands] Activated schedule profile ${target} (id: ${pRows[0].id}) for home ${homeId}`);
+            } else {
+                if (log) log('warn', `[mqtt-commands] Schedule profile ${target} not found for home ${homeId}`);
+            }
         } else if (['is_proxied', 'proxy_logging', 'log_uploads_enabled', 'allow_commands_in_proxy', 'zone_config_readonly', 'ha_discovery_enabled'].includes(command)) {
             const ALLOWED_HOME_COLUMNS = new Set(['is_proxied', 'proxy_logging', 'log_uploads_enabled', 'allow_commands_in_proxy', 'zone_config_readonly', 'ha_discovery_enabled']);
             if (!ALLOWED_HOME_COLUMNS.has(command)) return; // Redundant safety guard

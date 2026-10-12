@@ -24,6 +24,8 @@ export const SWR_KEYS = {
   // Schedules
   activeTimetable: (homeId, zoneId) => `/homes/${homeId}/zones/${zoneId}/schedule/activeTimetable`,
   timetableBlocks: (homeId, zoneId, timetableId) => `/homes/${homeId}/zones/${zoneId}/schedule/timetables/${timetableId}/blocks`,
+  scheduleProfiles: (homeId) => `/homes/${homeId}/scheduleProfiles`,
+  scheduleProfileDetail: (homeId, profileId) => `/homes/${homeId}/scheduleProfiles/${profileId}`,
 
   // Devices & Hardware
   devices: (homeId) => `/homes/${homeId}/devices`,

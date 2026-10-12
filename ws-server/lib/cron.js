@@ -137,6 +137,9 @@ function start({ broadcastTime, broadcastRfKey, pushZoneOverlayDelete, pushSched
         meshRecovery.runProactiveKeepAlive().catch(e => log('debug', `[cron] Keep-alive error: ${e.message}`));
     }, 15 * 60 * 1000));
 
+    // 12. Auto Schedule Profile Check (Every 1 hour)
+    _intervals.push(setInterval(evaluateAllHomesAutoProfiles, 60 * 60 * 1000));
+
     // Prevent cron intervals from keeping the process alive during crash paths
     for (const id of _intervals) id.unref();
 
@@ -144,6 +147,7 @@ function start({ broadcastTime, broadcastRfKey, pushZoneOverlayDelete, pushSched
     checkInactiveDevices();
     checkZones();
     evaluateAllHomesPresence().catch(() => { });
+    evaluateAllHomesAutoProfiles().catch(() => { });
 
     (async () => {
         await weather.updateAllHomesWeather();
@@ -569,6 +573,24 @@ async function evaluateAllHomesPresence() {
         }
     } catch (err) {
         log('error', `evaluateAllHomesPresence error: ${err.message}`);
+    }
+}
+
+async function evaluateAllHomesAutoProfiles() {
+    if (db.isOffline()) return;
+    try {
+        const pool = db.getPool();
+        const [homes] = await pool.execute('SELECT id FROM homes');
+        if (homes.length === 0) return;
+
+        const dbScheduleProfiles = require('./db-schedule-profiles');
+        for (const home of homes) {
+            await dbScheduleProfiles.evaluateAutoScheduleProfiles(home.id).catch(e => {
+                log('debug', `[cron] Auto schedule profile evaluation failed for home ${home.id}: ${e.message}`);
+            });
+        }
+    } catch (err) {
+        log('error', `evaluateAllHomesAutoProfiles error: ${err.message}`);
     }
 }
 

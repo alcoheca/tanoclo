@@ -203,6 +203,29 @@ router.post('/:homeId/zones', async (req, res) => {
         // Update zones_count in homes
         await pool.execute('UPDATE homes SET zones_count = (SELECT COUNT(*) FROM zones WHERE home_id = ?) WHERE id = ?', [homeId, homeId]);
 
+        // Ensure new zone has full default timetable and is added to all schedule profiles
+        try {
+            const [ttRes] = await pool.execute(
+                'INSERT INTO zone_timetables (zone_id, home_id, type, is_active) VALUES (?, ?, ?, 1)',
+                [newZoneId, homeId, 'ONE_DAY']
+            );
+            const internalTtId = ttRes.insertId;
+            const settingType = isHotWater ? 'HOT_WATER' : 'HEATING';
+            const tempC = isHotWater ? 50.0 : 20.0;
+            const tempF = isHotWater ? 122.0 : 68.0;
+            await pool.execute(`
+                INSERT INTO schedule_blocks (
+                    timetable_id, home_id, day_type, start_time, end_time, geolocation_override, 
+                    setting_type, setting_power, setting_temp_celsius, setting_temp_fahrenheit
+                ) VALUES (?, ?, 'MONDAY_TO_SUNDAY', '00:00', '00:00', 0, ?, 'ON', ?, ?)
+            `, [internalTtId, homeId, settingType, tempC, tempF]);
+
+            const dbScheduleProfiles = require('../../../lib/db-schedule-profiles');
+            await dbScheduleProfiles.addZoneToAllProfiles(homeId, newZoneId, type);
+        } catch (e) {
+            _log('warn', `Failed to initialize default timetable / schedule profiles for zone ${newZoneId}: ${e.message}`);
+        }
+
         // Process device assignment if provided
         let assignedDevices = [];
         let devSerial = null;

@@ -786,6 +786,26 @@ async function publishHomeTelemetry(homeId, homeData = null) {
         _pub(`${BASE_TOPIC}/h/${homeId}/log_uploads_enabled`, (home.log_uploads_enabled === 1 || home.log_uploads_enabled === true) ? 'ON' : 'OFF');
         _pub(`${BASE_TOPIC}/h/${homeId}/allow_commands_in_proxy`, (home.allow_commands_in_proxy === 1 || home.allow_commands_in_proxy === true) ? 'ON' : 'OFF');
         _pub(`${BASE_TOPIC}/h/${homeId}/zone_config_readonly`, (home.zone_config_readonly === 1 || home.zone_config_readonly === true) ? 'ON' : 'OFF');
+
+        // Publish Schedule Profile state
+        let activeProfileName = '';
+        if (db) {
+            try {
+                const pool = db.getPool();
+                const [profRows] = await pool.execute(`
+                    SELECT sp.name 
+                    FROM schedule_profiles sp 
+                    WHERE sp.home_id = ? AND (sp.is_active = 1 OR sp.id = ?)
+                    LIMIT 1
+                `, [homeId, home.active_schedule_profile_id || 0]);
+                if (profRows.length > 0) {
+                    activeProfileName = profRows[0].name;
+                }
+            } catch (e) {
+                if (log) log('debug', `Failed to query active profile name for home ${homeId}: ${e.message}`);
+            }
+        }
+        _pub(`${BASE_TOPIC}/h/${homeId}/schedule_profile`, activeProfileName);
     }
 
     // Weather telemetry

@@ -25095,6 +25095,42 @@ ALTER TABLE `schedule_blocks`
 
 ALTER TABLE `zone_timetables`
   ADD CONSTRAINT `zone_timetables_ibfk_1` FOREIGN KEY (`zone_id`,`home_id`) REFERENCES `zones` (`id`, `home_id`) ON DELETE CASCADE;
+
+CREATE TABLE IF NOT EXISTS `schedule_profiles` (
+  `id` int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `home_id` int(11) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `icon` varchar(50) NOT NULL DEFAULT 'calendar',
+  `description` varchar(255) DEFAULT '',
+  `is_active` tinyint(1) NOT NULL DEFAULT 0,
+  `auto_start_date` varchar(10) DEFAULT NULL,
+  `order_index` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX `idx_sp_home` (`home_id`),
+  CONSTRAINT `fk_sp_home` FOREIGN KEY (`home_id`) REFERENCES `homes` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `schedule_profile_blocks` (
+  `id` int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `profile_id` int(11) NOT NULL,
+  `home_id` int(11) NOT NULL,
+  `zone_id` int(11) NOT NULL,
+  `timetable_type` varchar(50) NOT NULL DEFAULT 'ONE_DAY',
+  `day_type` varchar(50) NOT NULL,
+  `start_time` varchar(10) NOT NULL,
+  `end_time` varchar(10) NOT NULL,
+  `geolocation_override` tinyint(1) DEFAULT 0,
+  `setting_type` varchar(50) DEFAULT 'HEATING',
+  `setting_power` varchar(20) DEFAULT 'ON',
+  `setting_temp_celsius` decimal(5,2) DEFAULT NULL,
+  `setting_temp_fahrenheit` decimal(5,2) DEFAULT NULL,
+  INDEX `idx_spb_profile_zone` (`profile_id`, `zone_id`),
+  INDEX `idx_spb_home` (`home_id`),
+  CONSTRAINT `fk_spb_profile` FOREIGN KEY (`profile_id`) REFERENCES `schedule_profiles` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_spb_zone` FOREIGN KEY (`zone_id`, `home_id`) REFERENCES `zones` (`id`, `home_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

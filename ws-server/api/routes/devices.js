@@ -1001,6 +1001,23 @@ async function setDeviceRole(req, res) {
                         [dhwZoneId, homeId, now, circuitNumber, nextOrder]
                     );
                     await pool.execute('UPDATE homes SET zones_count = (SELECT COUNT(*) FROM zones WHERE home_id = ?) WHERE id = ?', [homeId, homeId]);
+
+                    try {
+                        const [ttRes] = await pool.execute(
+                            'INSERT INTO zone_timetables (zone_id, home_id, type, is_active) VALUES (?, ?, ?, 1)',
+                            [dhwZoneId, homeId, 'ONE_DAY']
+                        );
+                        await pool.execute(`
+                            INSERT INTO schedule_blocks (
+                                timetable_id, home_id, day_type, start_time, end_time, geolocation_override, 
+                                setting_type, setting_power, setting_temp_celsius, setting_temp_fahrenheit
+                            ) VALUES (?, ?, 'MONDAY_TO_SUNDAY', '00:00', '00:00', 0, 'HOT_WATER', 'ON', 50.0, 122.0)
+                        `, [ttRes.insertId, homeId]);
+                        const dbScheduleProfiles = require('../../lib/db-schedule-profiles');
+                        await dbScheduleProfiles.addZoneToAllProfiles(homeId, dhwZoneId, 'HOT_WATER');
+                    } catch (e) {
+                        _log.debug(`[devices] Failed to init timetable for DHW zone: ${e.message}`);
+                    }
                 }
             }
 

@@ -92,8 +92,20 @@ async function publishAllDiscovery() {
             }
         };
 
+        // Query schedule profiles per home
+        let profilesByHome = new Map();
+        try {
+            const [profileRows] = await pool.execute('SELECT home_id, name FROM schedule_profiles ORDER BY order_index ASC, id ASC');
+            for (const p of profileRows) {
+                if (!profilesByHome.has(p.home_id)) profilesByHome.set(p.home_id, []);
+                profilesByHome.get(p.home_id).push(p.name);
+            }
+        } catch (e) {
+            if (log) log('debug', `[mqtt-ha] Failed to load schedule profiles for discovery: ${e.message}`);
+        }
+
         // Delegate to modular builders
-        homeBuilders.buildHomeDiscovery(publishEntity, homes);
+        homeBuilders.buildHomeDiscovery(publishEntity, homes, profilesByHome);
         zoneBuilders.buildZoneDiscovery(publishEntity, zones, config);
         deviceBuilders.buildDeviceDiscovery(publishEntity, devices, config);
         emulatedBuilders.buildEmulatedDeviceDiscovery(publishEntity, emulatedDevices);
