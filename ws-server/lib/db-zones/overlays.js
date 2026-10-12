@@ -107,7 +107,7 @@ async function updateZoneOpenWindow(homeId, zoneId, active) {
     await insertMergedZoneMeasurement(homeId, zoneId, { open_window_detected: active ? 1 : 0 });
 }
 
-async function updateZoneOpenWindowSettings(homeId, zoneId, enabled, timeout, deviationLimit = null, owdNvmState = null) {
+async function updateZoneOpenWindowSettings(homeId, zoneId, enabled, timeout, owdNvmState = null) {
     if (!homeId) throw new Error('homeId is required for updateZoneOpenWindowSettings');
     const p = getPool();
     // 1. Load last_config_json
@@ -121,11 +121,6 @@ async function updateZoneOpenWindowSettings(homeId, zoneId, enabled, timeout, de
     const updates = ['open_window_enabled = ?', 'open_window_timeout = ?'];
     const params = [enabled ? 1 : 0, timeout];
 
-    if (deviationLimit !== null && deviationLimit !== undefined) {
-        mergedConfig['0x6080'] = deviationLimit;
-        updates.push('field_6080 = ?');
-        params.push(deviationLimit);
-    }
     if (owdNvmState !== null && owdNvmState !== undefined) {
         mergedConfig['0x6340'] = owdNvmState;
         updates.push('field_6340 = ?');

@@ -419,6 +419,8 @@
     "raw_explorer": "Raw Explorer",
     "hydraulic_balancing": "Hydraulic Balancing",
     "hydraulic_balancing_desc": "Optimize radiator valve sensitivities",
+    "pid_tuning": "Thermodynamic PID",
+    "pid_tuning_desc": "Tune room PID heating parameters",
     "access_restricted": "Access Restricted",
     "access_restricted_desc": "Only the home administrator can access these configuration settings.",
     "transfer_admin": "Transfer Admin",
@@ -1362,5 +1364,22 @@
     "slider_max_throttle": "200% (Max Throttle)",
     "valve_count_one": "{{count}} valve",
     "valve_count_other": "{{count}} valves"
+  },
+  "pid_tuning": {
+    "title": "Thermodynamic Room PID Tuning",
+    "subtitle": "Iteratively optimize room heating gains (Kp, Ki, Kd) based on measured thermal transient response.",
+    "prerequisite_title": "Step 1: Perform Hydraulic Balancing First!",
+    "prerequisite_desc": "Before tuning room PID parameters, hydraulic balancing must be performed to ensure radiators across your home warm at uniform rates. Once hydraulic balance is set, room PID tuning fine-tunes response speed, steady-state error, and prevents overshoot.",
+    "hydraulic_baseline_active": "Hydraulic balancing baseline detected (Snapshot #{{id}})",
+    "no_hydraulic_baseline": "No hydraulic snapshot applied yet. We recommend applying hydraulic balancing first.",
+    "time_window": "History Window:",
+    "run_analysis": "Run PID Analysis",
+    "analyzing": "Analyzing...",
+    "results_title": "Zone PID Tuning Recommendations",
+    "results_summary": "Evaluated {{windows}} transient windows over {{hours}}h",
+    "apply_all": "Apply Suggested Gains",
+    "history_title": "Tuning History",
+    "applied": "Applied",
+    "not_applied": "Advisory only"
   }
 }

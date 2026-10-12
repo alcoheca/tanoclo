@@ -17,6 +17,7 @@ import SupplyTempSettings from '../../components/settings/SupplyTempSettings';
 import BoilerCircuitsSettings from '../../components/settings/BoilerCircuitsSettings';
 import RawExplorerSettings from '../../components/settings/RawExplorerSettings';
 import BalancingSettings from '../../components/settings/BalancingSettings';
+import PidTuningSettings from '../../components/settings/PidTuningSettings';
 import { SWR_KEYS } from '../../utils/swrKeys';
 import { getDeviceBatteryData } from '../../api/tanoclo';
 
@@ -24,6 +25,7 @@ const MemoizedSupplyTempSettings = React.memo(SupplyTempSettings);
 const MemoizedBoilerCircuitsSettings = React.memo(BoilerCircuitsSettings);
 const MemoizedRawExplorerSettings = React.memo(RawExplorerSettings);
 const MemoizedBalancingSettings = React.memo(BalancingSettings);
+const MemoizedPidTuningSettings = React.memo(PidTuningSettings);
 
 /**
  * @brief Renders the Server/Hardware Settings panel selector.
@@ -223,6 +225,9 @@ export default function ServerSettingsPanel({
 
     case 'balancing':
       return <MemoizedBalancingSettings homeId={activeHomeId} devices={devices} zones={zones} isReadOnly={isReadOnly} />;
+
+    case 'pid-tuning':
+      return <MemoizedPidTuningSettings homeId={activeHomeId} zones={zones} isReadOnly={isReadOnly} />;
 
     case 'boiler-circuits':
       return <MemoizedBoilerCircuitsSettings />;

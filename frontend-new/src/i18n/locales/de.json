@@ -571,6 +571,8 @@
     "raw_explorer": "Rohdaten-Explorer",
     "hydraulic_balancing": "Hydraulischer Abgleich",
     "hydraulic_balancing_desc": "Heizkörper-Ventilempfindlichkeiten optimieren",
+    "pid_tuning": "Thermodynamischer PID",
+    "pid_tuning_desc": "Raum-PID-Heizparameter optimieren",
     "access_restricted": "Zugriff eingeschränkt",
     "access_restricted_desc": "Nur der Administrator des Hauses kann auf diese Einstellungen zugreifen.",
     "transfer_admin": "Admin übertragen",
@@ -1362,5 +1364,22 @@
     "slider_max_throttle": "200% (Max. Drosselung)",
     "valve_count_one": "{{count}} Ventil",
     "valve_count_other": "{{count}} Ventile"
+  },
+  "pid_tuning": {
+    "title": "Thermodynamischer Raum-PID-Abgleich",
+    "subtitle": "Iterative Optimierung der Raum-Heizparameter (Kp, Ki, Kd) anhand gemessener thermischer Übergangsreaktionen.",
+    "prerequisite_title": "Schritt 1: Zuerst hydraulischen Abgleich durchführen!",
+    "prerequisite_desc": "Vor dem Einstellen der Raum-PID-Parameter muss ein hydraulischer Abgleich durchgeführt werden, damit alle Heizkörper im Haus gleichmäßig erwärmen. Danach optimiert der Raum-PID Reaktionsgeschwindigkeit und Regelgenauigkeit.",
+    "hydraulic_baseline_active": "Hydraulischer Abgleich erkannt (Schnappschuss #{{id}})",
+    "no_hydraulic_baseline": "Noch kein hydraulischer Schnappschuss angewendet. Wir empfehlen, zuerst den hydraulischen Abgleich durchzuführen.",
+    "time_window": "Analysezeitraum:",
+    "run_analysis": "PID-Analyse starten",
+    "analyzing": "Analysiere...",
+    "results_title": "Zonen-PID-Empfehlungen",
+    "results_summary": "Auswertung von {{windows}} Übergangsfenstern über {{hours}} Std.",
+    "apply_all": "Empfohlene Werte anwenden",
+    "history_title": "Optimierungsverlauf",
+    "applied": "Angewendet",
+    "not_applied": "Nur beratend"
   }
 }

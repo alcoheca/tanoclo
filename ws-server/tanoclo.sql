@@ -23087,6 +23087,16 @@ CREATE TABLE `balancing_snapshots` (
   `applied_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `pid_tuning_snapshots` (
+  `id` bigint(20) NOT NULL,
+  `home_id` int(11) NOT NULL,
+  `hydraulic_snapshot_id` bigint(20) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `analysis_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL CHECK (json_valid(`analysis_json`)),
+  `applied` tinyint(1) NOT NULL DEFAULT 0,
+  `applied_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE `circuit_measurements` (
   `id` bigint(20) NOT NULL,
   `home_id` int(11) NOT NULL,
@@ -24932,6 +24942,11 @@ ALTER TABLE `balancing_snapshots`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_bs_home` (`home_id`,`created_at` DESC);
 
+ALTER TABLE `pid_tuning_snapshots`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_pts_home` (`home_id`,`created_at` DESC),
+  ADD KEY `idx_pts_hydraulic` (`hydraulic_snapshot_id`);
+
 ALTER TABLE `circuit_measurements`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_cm_home_circuit_ts` (`home_id`,`circuit_number`,`timestamp`),
@@ -25033,6 +25048,9 @@ ALTER TABLE `admin_users`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `balancing_snapshots`
+  MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
+
+ALTER TABLE `pid_tuning_snapshots`
   MODIFY `id` bigint(20) NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `circuit_measurements`

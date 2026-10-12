@@ -78,7 +78,7 @@ router.put('/:homeId/zones/:zoneId/openWindowDetection', async (req, res) => {
 
         const newNvmState = owdNvmState !== undefined && owdNvmState !== null ? parseInt(owdNvmState, 10) : currentNvmState;
 
-        await db.updateZoneOpenWindowSettings(homeId, zoneId, newEnabled, newTimeout, null, newNvmState);
+        await db.updateZoneOpenWindowSettings(homeId, zoneId, newEnabled, newTimeout, newNvmState);
 
         const [devices] = await pool.execute('SELECT serial_no FROM devices WHERE zone_id = ? AND home_id = ?', [zoneId, homeId]);
         for (const dev of devices) {

@@ -54,4 +54,5 @@ export const SWR_KEYS = {
   supplyTempOptimization: (homeId) => `/homes/${homeId}/supplyTemperatureOptimization`,
   supplyTempHistory: (homeId) => `/homes/${homeId}/supplyTemperatureHistory`,
   balancingHistory: (homeId) => `/homes/${homeId}/balancing/history`,
+  pidTuningHistory: (homeId) => `/homes/${homeId}/pid-tuning/history`,
 };

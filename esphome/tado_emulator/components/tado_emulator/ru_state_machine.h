@@ -136,6 +136,16 @@ struct EmulatedDeviceConfig {
   uint32_t zone_config_block{0};        // Current Block2 block index when pulling zone config
   bool boot_sync_done{false};           // Trigger startup sync on first operational tick
 
+  // PID controller parameters & state
+  uint16_t pid_kp_raw{1000};            // 0x6080 Kp (default 10.00 / raw 1000)
+  uint16_t pid_ki_raw{500};             // 0x60a0 Ki (default 5.00 / raw 500)
+  uint16_t pid_kd_raw{1500};            // 0x60c0 Kd (default 15.00 / raw 1500)
+  int32_t pid_accumulator{0};           // Anti-windup accumulator clamped to 3,000,000 / Ki
+  int16_t pid_prev_temp_raw{2150};      // Previous temperature (centidegrees) for derivative braking
+  int32_t pid_i_state{0};               // Cached I contribution
+  int32_t pid_d_state{0};               // Cached D contribution
+  uint32_t last_pid_tick_ms{0};         // Periodic 60s PID evaluation timestamp
+
   // Timing and Sequence Tracking
   uint8_t seq_num{1};
   uint16_t coap_mid{0x4000};
@@ -177,6 +187,10 @@ class RUStateMachine {
 
   // Periodic tick (checks idle fallback and pairing retransmissions)
   void tick(uint32_t now_ms, uint32_t now_s, std::vector<OutboundFrame> &outbound_frames);
+
+  // Firmware-aligned PID control laws (FUN_08031970 periodic, FUN_080319f4 immediate)
+  uint8_t calculate_periodic_pid();
+  uint8_t calculate_immediate_pid();
 
   // Inbound packet dispatch
   void process_inbound_decrypted(const ParsedMac &mac, const uint8_t *decrypted, size_t len,

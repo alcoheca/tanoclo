@@ -24,5 +24,6 @@ router.use('/', require('./homes/users'));
 router.use('/', require('./homes/energy'));
 router.use('/', require('./homes/incident'));
 router.use('/', require('./homes/balancing'));
+router.use('/', require('./homes/pid-tuning'));
 
 module.exports = router;

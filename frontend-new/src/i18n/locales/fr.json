@@ -571,6 +571,8 @@
     "raw_explorer": "Explorateur de données",
     "hydraulic_balancing": "Équilibrage hydraulique",
     "hydraulic_balancing_desc": "Optimiser la sensibilité des vannes de radiateur",
+    "pid_tuning": "PID thermodynamique",
+    "pid_tuning_desc": "Optimiser les paramètres de régulation PID",
     "access_restricted": "Accès restreint",
     "access_restricted_desc": "Seul l'administrateur de la maison peut accéder à ces paramètres.",
     "transfer_admin": "Transférer l'admin",
@@ -1362,5 +1364,22 @@
     "slider_max_throttle": "200% (Bridage max)",
     "valve_count_one": "{{count}} vanne",
     "valve_count_other": "{{count}} vannes"
+  },
+  "pid_tuning": {
+    "title": "Régulation PID Thermodynamique des Pièces",
+    "subtitle": "Optimisez itérativement les gains de chauffe (Kp, Ki, Kd) en fonction des réponses thermiques mesurées.",
+    "prerequisite_title": "Étape 1 : Effectuez d'abord l'équilibrage hydraulique !",
+    "prerequisite_desc": "Avant de régler les paramètres PID de chaque pièce, l'équilibrage hydraulique doit être effectué pour garantir une montée en température homogène de tous les radiateurs.",
+    "hydraulic_baseline_active": "Référence d'équilibrage hydraulique détectée (Instantané #{{id}})",
+    "no_hydraulic_baseline": "Aucun instantané hydraulique appliqué. Nous vous recommandons d'effectuer l'équilibrage d'abord.",
+    "time_window": "Période d'historique :",
+    "run_analysis": "Lancer l'analyse PID",
+    "analyzing": "Analyse en cours...",
+    "results_title": "Recommandations PID par zone",
+    "results_summary": "Évaluation sur {{windows}} fenêtres transitoires en {{hours}}h",
+    "apply_all": "Appliquer les gains suggérés",
+    "history_title": "Historique de régulation",
+    "applied": "Appliqué",
+    "not_applied": "Conseil uniquement"
   }
 }

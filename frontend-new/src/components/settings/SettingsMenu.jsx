@@ -8,7 +8,7 @@
 
 import { useTranslation } from 'react-i18next';
 import {
-  Settings, Home, Users, Shield, Thermometer, Calendar, Flame, Sliders
+  Settings, Home, Users, Shield, Thermometer, Calendar, Flame, Sliders, Activity
 } from 'lucide-react';
 
 /**
@@ -24,6 +24,7 @@ export function getSettingsMenuItems(t) {
     { id: 'people', label: t('settings.people'), subtitle: t('settings.people_desc'), icon: <Users size={18} /> },
     { id: 'flow-temp', label: t('settings.flow_temp'), subtitle: t('settings.flow_temp_desc'), icon: <Thermometer size={18} /> },
     { id: 'balancing', label: t('settings.hydraulic_balancing', { defaultValue: 'Hydraulic Balancing' }), subtitle: t('settings.hydraulic_balancing_desc', { defaultValue: 'Optimize radiator valve sensitivities' }), icon: <Sliders size={18} /> },
+    { id: 'pid-tuning', label: t('settings.pid_tuning', { defaultValue: 'Thermodynamic PID' }), subtitle: t('settings.pid_tuning_desc', { defaultValue: 'Tune room PID heating parameters' }), icon: <Activity size={18} /> },
     { id: 'smart-schedule', label: t('schedule.title'), subtitle: t('settings.schedule_desc'), icon: <Calendar size={18} /> },
     { id: 'heating-activity', label: t('heating_activity.title'), subtitle: t('settings.heating_activity_desc'), icon: <Flame size={18} /> },
     { id: 'boiler-circuits', label: t('settings.boiler_circuits'), subtitle: t('settings.boiler_circuits_desc'), icon: <Thermometer size={18} /> },
@@ -47,6 +48,7 @@ export function getSettingsMenuGroups(t) {
         { id: 'devices', label: t('settings.devices'), subtitle: t('settings.devices_desc'), icon: <Shield size={18} /> },
         { id: 'flow-temp', label: t('settings.flow_temp'), subtitle: t('settings.flow_temp_desc'), icon: <Thermometer size={18} /> },
         { id: 'balancing', label: t('settings.hydraulic_balancing', { defaultValue: 'Hydraulic Balancing' }), subtitle: t('settings.hydraulic_balancing_desc', { defaultValue: 'Optimize radiator valve sensitivities' }), icon: <Sliders size={18} /> },
+        { id: 'pid-tuning', label: t('settings.pid_tuning', { defaultValue: 'Thermodynamic PID' }), subtitle: t('settings.pid_tuning_desc', { defaultValue: 'Tune room PID heating parameters' }), icon: <Activity size={18} /> },
         { id: 'smart-schedule', label: t('schedule.title'), subtitle: t('settings.schedule_desc'), icon: <Calendar size={18} /> }
       ]
     },

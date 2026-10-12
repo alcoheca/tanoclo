@@ -571,6 +571,8 @@
     "raw_explorer": "Explorador de Datos",
     "hydraulic_balancing": "Equilibrado hidráulico",
     "hydraulic_balancing_desc": "Optimizar la sensibilidad de las válvulas de radiador",
+    "pid_tuning": "PID termodinámico",
+    "pid_tuning_desc": "Optimizar los parámetros de control PID",
     "access_restricted": "Acceso Restringido",
     "access_restricted_desc": "Solo el administrador de la casa puede acceder a estos ajustes.",
     "transfer_admin": "Transferir Admin",
@@ -1362,5 +1364,22 @@
     "slider_max_throttle": "200% (Estrangulamiento máx)",
     "valve_count_one": "{{count}} válvula",
     "valve_count_other": "{{count}} válvulas"
+  },
+  "pid_tuning": {
+    "title": "Ajuste PID Termodinámico de Habitaciones",
+    "subtitle": "Optimice iterativamente las ganancias de calefacción (Kp, Ki, Kd) según las respuestas térmicas medidas.",
+    "prerequisite_title": "Paso 1: ¡Realice primero el equilibrado hidráulico!",
+    "prerequisite_desc": "Antes de ajustar los parámetros PID de las habitaciones, se debe realizar el equilibrado hidráulico para asegurar que todos los radiadores calienten uniformemente.",
+    "hydraulic_baseline_active": "Línea base de equilibrado hidráulico detectada (Instantánea #{{id}})",
+    "no_hydraulic_baseline": "Aún no se ha aplicado una instantánea hidráulica. Recomendamos realizar el equilibrado primero.",
+    "time_window": "Ventana de historial:",
+    "run_analysis": "Ejecutar análisis PID",
+    "analyzing": "Analizando...",
+    "results_title": "Recomendaciones de PID por zona",
+    "results_summary": "Evaluadas {{windows}} ventanas transitorias en {{hours}}h",
+    "apply_all": "Aplicar ganancias sugeridas",
+    "history_title": "Historial de ajustes",
+    "applied": "Aplicado",
+    "not_applied": "Solo informativo"
   }
 }

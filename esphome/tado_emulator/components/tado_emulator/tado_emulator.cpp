@@ -269,12 +269,16 @@ void TadoEmulatorComponent::process_queued_packet(const RxPacket &pkt) {
                                 (cfg.home_id != dev.get_config().home_id) ||
                                 (cfg.has_session_token != dev.get_config().has_session_token) ||
                                 (cfg.setpoint_temp_celsius != dev.get_config().setpoint_temp_celsius) ||
-                                (cfg.zone_mode != dev.get_config().zone_mode);
+                                (cfg.zone_mode != dev.get_config().zone_mode) ||
+                                (cfg.pid_kp_raw != dev.get_config().pid_kp_raw) ||
+                                (cfg.pid_ki_raw != dev.get_config().pid_ki_raw) ||
+                                (cfg.pid_kd_raw != dev.get_config().pid_kd_raw);
           if (config_changed) {
             save_to_nvs();
-            ESP_LOGI(TAG, "Device %s state/config saved to NVS (zone=%lu, leader=%d, setpoint=%.2fC, mode=%u).",
+            ESP_LOGI(TAG, "Device %s state/config saved to NVS (zone=%lu, leader=%d, setpoint=%.2fC, mode=%u, Kp=%u, Ki=%u, Kd=%u).",
                      cfg.serial_no.c_str(), (unsigned long)dev.get_config().zone_id, dev.get_config().is_measuring_leader,
-                     dev.get_config().setpoint_temp_celsius, dev.get_config().zone_mode);
+                     dev.get_config().setpoint_temp_celsius, dev.get_config().zone_mode,
+                     dev.get_config().pid_kp_raw, dev.get_config().pid_ki_raw, dev.get_config().pid_kd_raw);
           }
           for (size_t i = 0; i < outbound.size(); i++) {
             if (i > 0) {
@@ -345,6 +349,11 @@ void TadoEmulatorComponent::save_to_nvs() {
     uint32_t raw_sp = (uint32_t)(cfg.setpoint_temp_celsius * 100.0f);
     nvs_set_u32(handle, (prefix + "sp").c_str(), raw_sp);
     nvs_set_u8(handle, (prefix + "zm").c_str(), cfg.zone_mode);
+    nvs_set_u16(handle, (prefix + "kp").c_str(), cfg.pid_kp_raw);
+    nvs_set_u16(handle, (prefix + "ki").c_str(), cfg.pid_ki_raw);
+    nvs_set_u16(handle, (prefix + "kd").c_str(), cfg.pid_kd_raw);
+    nvs_set_i32(handle, (prefix + "acc").c_str(), cfg.pid_accumulator);
+    nvs_set_i16(handle, (prefix + "pt").c_str(), cfg.pid_prev_temp_raw);
   }
 
   nvs_commit(handle);
@@ -413,6 +422,16 @@ void TadoEmulatorComponent::load_from_nvs() {
     if (nvs_get_u8(handle, (prefix + "zm").c_str(), &zm) == ESP_OK) {
       cfg.zone_mode = zm;
     }
+    uint16_t kp = 1000;
+    if (nvs_get_u16(handle, (prefix + "kp").c_str(), &kp) == ESP_OK) cfg.pid_kp_raw = kp;
+    uint16_t ki = 500;
+    if (nvs_get_u16(handle, (prefix + "ki").c_str(), &ki) == ESP_OK) cfg.pid_ki_raw = ki;
+    uint16_t kd = 1500;
+    if (nvs_get_u16(handle, (prefix + "kd").c_str(), &kd) == ESP_OK) cfg.pid_kd_raw = kd;
+    int32_t acc = 0;
+    if (nvs_get_i32(handle, (prefix + "acc").c_str(), &acc) == ESP_OK) cfg.pid_accumulator = acc;
+    int16_t pt = 2150;
+    if (nvs_get_i16(handle, (prefix + "pt").c_str(), &pt) == ESP_OK) cfg.pid_prev_temp_raw = pt;
 
     cfg.derive_short_addr();
     devices_.emplace_back(cfg);

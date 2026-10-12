@@ -24,6 +24,68 @@ RUStateMachine::RUStateMachine(const EmulatedDeviceConfig &cfg) : config_(cfg) {
   config_.last_zp_tx_ts = 0;
 }
 
+uint8_t RUStateMachine::calculate_periodic_pid() {
+  if (config_.zone_mode != 1) {
+    config_.current_demand_percent = 0;
+    return 0;
+  }
+
+  int32_t current_raw = (int32_t)std::round(config_.target_temp_celsius * 100.0f);
+  int32_t setpoint_raw = (int32_t)std::round(config_.setpoint_temp_celsius * 100.0f);
+  int32_t prev_raw = config_.pid_prev_temp_raw;
+
+  int32_t kp = config_.pid_kp_raw;
+  int32_t ki = config_.pid_ki_raw;
+  int32_t kd = config_.pid_kd_raw;
+
+  // PID anti-windup clamp: 3,000,000 / Ki
+  int32_t max_acc = (ki > 0) ? (3000000 / ki) : 0;
+  int32_t new_acc = config_.pid_accumulator + (setpoint_raw - current_raw);
+  if (new_acc > max_acc) {
+    config_.pid_accumulator = max_acc;
+  } else if (new_acc < 0) {
+    config_.pid_accumulator = 0;
+  } else {
+    config_.pid_accumulator = new_acc;
+  }
+
+  // I term = (Ki * accumulator) / 30000
+  config_.pid_i_state = (ki * config_.pid_accumulator) / 30000;
+  // D term = (Kd * (current - previous)) / 2000 (dynamic braking on rate of rise)
+  config_.pid_d_state = (kd * (current_raw - prev_raw)) / 2000;
+  // P term = (Kp * (setpoint - current)) / 2000
+  int32_t p_term = (kp * (setpoint_raw - current_raw)) / 2000;
+
+  // Closed loop: clamp(P + I - D, 0, 100)
+  int32_t demand = (p_term + config_.pid_i_state) - config_.pid_d_state;
+  if (demand > 100) demand = 100;
+  if (demand < 0) demand = 0;
+
+  config_.current_demand_percent = (uint8_t)demand;
+  config_.pid_prev_temp_raw = (int16_t)current_raw;
+  return (uint8_t)demand;
+}
+
+uint8_t RUStateMachine::calculate_immediate_pid() {
+  if (config_.zone_mode != 1) {
+    config_.current_demand_percent = 0;
+    return 0;
+  }
+
+  int32_t current_raw = (int32_t)std::round(config_.target_temp_celsius * 100.0f);
+  int32_t setpoint_raw = (int32_t)std::round(config_.setpoint_temp_celsius * 100.0f);
+  int32_t kp = config_.pid_kp_raw;
+
+  int32_t p_term = (kp * (setpoint_raw - current_raw)) / 2000;
+  // Uses existing cached I_state and D_state
+  int32_t demand = (p_term + config_.pid_i_state) - config_.pid_d_state;
+  if (demand > 100) demand = 100;
+  if (demand < 0) demand = 0;
+
+  config_.current_demand_percent = (uint8_t)demand;
+  return (uint8_t)demand;
+}
+
 void RUStateMachine::trigger_telemetry(float temp_c, float hum_pct, uint16_t battery_mv,
                                       std::vector<OutboundFrame> &outbound_frames) {
   uint32_t now_s = (uint32_t)(esp_timer_get_time() / 1000000ULL);
@@ -33,8 +95,11 @@ void RUStateMachine::trigger_telemetry(float temp_c, float hum_pct, uint16_t bat
   config_.last_telemetry_ts = now_s;
   config_.last_external_telemetry_ts = now_s;
 
-  ESP_LOGI(TAG, "[%s] Trigger telemetry: temp=%.2fC hum=%.1f%% bat=%dmV",
-           config_.serial_no.c_str(), temp_c, hum_pct, battery_mv);
+  // Recalculate immediate PID demand with updated temperature
+  calculate_immediate_pid();
+
+  ESP_LOGI(TAG, "[%s] Trigger telemetry: temp=%.2fC hum=%.1f%% bat=%dmV demand=%u%%",
+           config_.serial_no.c_str(), temp_c, hum_pct, battery_mv, config_.current_demand_percent);
 
   // 1. Device sensor (/d/{serial}/sen) to Bridge
   std::vector<uint8_t> tlv = protocol::build_d_sen_tlv(temp_c, hum_pct, battery_mv,
@@ -147,6 +212,22 @@ void RUStateMachine::tick(uint32_t now_ms, uint32_t now_s, std::vector<OutboundF
 
   // 1. Operational State: Autonomous heartbeats & Hourly maintenance burst
   if (config_.state == STATE_OPERATIONAL) {
+    // Periodic closed-loop PID recalculation (FUN_08031970 every 60s)
+    if (config_.last_pid_tick_ms == 0 || (now_ms - config_.last_pid_tick_ms >= 60000)) {
+      config_.last_pid_tick_ms = now_ms;
+      uint8_t prev_demand = config_.current_demand_percent;
+      uint8_t new_demand = calculate_periodic_pid();
+      if (new_demand != prev_demand && config_.home_id > 0 && config_.zone_id > 0 && config_.ib_mac_known) {
+        ESP_LOGI(TAG, "[%s] Periodic PID updated demand %u%% -> %u%%, notifying Bridge",
+                 config_.serial_no.c_str(), prev_demand, new_demand);
+        std::string act_path = "h/" + std::to_string(config_.home_id) + "/z/" + std::to_string(config_.zone_id) + "/act";
+        std::vector<uint8_t> act_tlv = protocol::build_z_act_tlv(new_demand);
+        OutboundFrame act_frame = build_encrypted_coap_frame(COAP_TYPE_CON, COAP_CODE_PUT, act_path,
+                                                            act_tlv.data(), act_tlv.size(), config_.ib_mac);
+        if (!act_frame.empty()) outbound_frames.push_back(std::move(act_frame));
+      }
+    }
+
     // Ensure valid session token: request via POST /auth/token if missing
     bool has_valid_token = false;
     if (config_.has_session_token) {
@@ -973,6 +1054,18 @@ void RUStateMachine::handle_coap_message(const ParsedCoAP &coap, const ParsedMac
                        config_.peer_va_mac[7], config_.peer_va_mac[6], config_.peer_va_mac[5], config_.peer_va_mac[4],
                        config_.peer_va_mac[3], config_.peer_va_mac[2], config_.peer_va_mac[1], config_.peer_va_mac[0]);
             }
+          } else if (t.tag == TLV_ZONE_PID_KP_6080 && t.value.size() >= 2) {
+            config_.pid_kp_raw = (uint16_t)((t.value[0] << 8) | t.value[1]);
+            ESP_LOGI(TAG, "[%s] Extracted PID Kp from zone config: %u (%.2f)",
+                     config_.serial_no.c_str(), config_.pid_kp_raw, config_.pid_kp_raw / 100.0f);
+          } else if (t.tag == TLV_ZONE_PID_KI_60A0 && t.value.size() >= 2) {
+            config_.pid_ki_raw = (uint16_t)((t.value[0] << 8) | t.value[1]);
+            ESP_LOGI(TAG, "[%s] Extracted PID Ki from zone config: %u (%.2f)",
+                     config_.serial_no.c_str(), config_.pid_ki_raw, config_.pid_ki_raw / 100.0f);
+          } else if (t.tag == TLV_ZONE_PID_KD_60C0 && t.value.size() >= 2) {
+            config_.pid_kd_raw = (uint16_t)((t.value[0] << 8) | t.value[1]);
+            ESP_LOGI(TAG, "[%s] Extracted PID Kd from zone config: %u (%.2f)",
+                     config_.serial_no.c_str(), config_.pid_kd_raw, config_.pid_kd_raw / 100.0f);
           }
         }
       }
@@ -1220,17 +1313,8 @@ void RUStateMachine::handle_coap_message(const ParsedCoAP &coap, const ParsedMac
     ESP_LOGI(TAG, "[%s] Processed PUT /z/s: mode=%d setpoint=%.2fC -> replied 2.04 Changed",
              config_.serial_no.c_str(), config_.zone_mode, config_.setpoint_temp_celsius);
 
-    // Demand calculation: error = setpoint - current_temp
-    float error = config_.setpoint_temp_celsius - config_.target_temp_celsius;
-    uint8_t demand = 0;
-    if (error > -0.3f) {
-      if (error >= 2.0f) {
-        demand = 100;
-      } else {
-        demand = (uint8_t)std::max(0.0f, std::min(100.0f, std::round(10.0f + error * 45.0f)));
-      }
-    }
-    config_.current_demand_percent = demand;
+    // Calculate immediate closed-loop PID demand
+    uint8_t demand = calculate_immediate_pid();
 
     bool sp_changed = (std::abs(config_.setpoint_temp_celsius - prev_sp) > 0.05f) || (config_.zone_mode != prev_mode);
     bool demand_changed = (demand != prev_demand);

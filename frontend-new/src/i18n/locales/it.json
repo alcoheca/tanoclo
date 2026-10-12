@@ -571,6 +571,8 @@
     "raw_explorer": "Esploratore Dati",
     "hydraulic_balancing": "Bilanciamento idraulico",
     "hydraulic_balancing_desc": "Ottimizza la sensibilità delle valvole dei termosifoni",
+    "pid_tuning": "PID termodinamico",
+    "pid_tuning_desc": "Ottimizza i parametri di regolazione PID",
     "access_restricted": "Accesso Limitato",
     "access_restricted_desc": "Solo l'amministratore della casa può accedere a queste impostazioni.",
     "transfer_admin": "Trasferisci Admin",
@@ -1362,5 +1364,22 @@
     "slider_max_throttle": "200% (Massimo strozzamento)",
     "valve_count_one": "{{count}} valvola",
     "valve_count_other": "{{count}} valvole"
+  },
+  "pid_tuning": {
+    "title": "Regolazione PID Termodinamico delle Stanze",
+    "subtitle": "Ottimizza in modo iterativo i guadagni di riscaldamento (Kp, Ki, Kd) in base alla risposta termica transitoria misurata.",
+    "prerequisite_title": "Passo 1: Esegui prima il bilanciamento idraulico!",
+    "prerequisite_desc": "Prima di regolare i parametri PID della stanza, è necessario eseguire il bilanciamento idraulico per garantire che tutti i radiatori della casa si riscaldino a velocità uniformi. Una volta impostato il bilanciamento, la regolazione PID ottimizza la reattività, riduce l'errore a regime e previene l'overshoot.",
+    "hydraulic_baseline_active": "Riferimento di bilanciamento idraulico rilevato (Istantanea #{{id}})",
+    "no_hydraulic_baseline": "Nessuna istantanea idraulica applicata. Si consiglia di eseguire prima il bilanciamento idraulico.",
+    "time_window": "Intervallo di analisi:",
+    "run_analysis": "Avvia analisi PID",
+    "analyzing": "Analisi in corso...",
+    "results_title": "Raccomandazioni PID per zona",
+    "results_summary": "Valutate {{windows}} finestre transitorie su {{hours}}h",
+    "apply_all": "Applica guadagni suggeriti",
+    "history_title": "Cronologia ottimizzazione",
+    "applied": "Applicato",
+    "not_applied": "Solo indicativo"
   }
 }

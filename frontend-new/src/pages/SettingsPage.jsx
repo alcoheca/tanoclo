@@ -331,6 +331,7 @@ export default function SettingsPage() {
       case 'devices':
       case 'flow-temp':
       case 'balancing':
+      case 'pid-tuning':
       case 'boiler-circuits':
       case 'raw-explorer':
         return (

@@ -571,6 +571,8 @@
     "raw_explorer": "Raw Explorer",
     "hydraulic_balancing": "Waterzijdige inregeling",
     "hydraulic_balancing_desc": "Optimaliseer ventielgevoeligheid van radiatoren",
+    "pid_tuning": "Thermodynamische PID",
+    "pid_tuning_desc": "Optimaliseer PID-regelparameters per zone",
     "access_restricted": "Toegang beperkt",
     "access_restricted_desc": "Alleen de beheerder van het huis heeft toegang tot deze instellingen.",
     "transfer_admin": "Beheerder overdragen",
@@ -1362,5 +1364,22 @@
     "slider_max_throttle": "200% (Max. afknijpen)",
     "valve_count_one": "{{count}} ventiel",
     "valve_count_other": "{{count}} ventielen"
+  },
+  "pid_tuning": {
+    "title": "Thermodynamische Ruimte-PID Inregeling",
+    "subtitle": "Optimaliseer zone-verwarmingsparameters (Kp, Ki, Kd) iteratief op basis van thermische responsmetingen.",
+    "prerequisite_title": "Stap 1: Voer eerst waterzijdige inregeling uit!",
+    "prerequisite_desc": "Voordat kamer-PID-parameters worden afgesteld, moeten de radiatoren waterzijdig worden ingeregeld zodat alle vertrekken gelijkmatig opwarmen. Daarna zorgt PID-tuning voor snelle respons en minimale overshoot.",
+    "hydraulic_baseline_active": "Waterzijdige nulmeting gedetecteerd (Snapshot #{{id}})",
+    "no_hydraulic_baseline": "Nog geen waterzijdige inregeling toegepast. We adviseren dit eerst te doen.",
+    "time_window": "Analyseperiode:",
+    "run_analysis": "Start PID-analyse",
+    "analyzing": "Analyseren...",
+    "results_title": "Aanbevelingen voor Zone-PID",
+    "results_summary": "Geanalyseerd over {{windows}} overgangsvensters in {{hours}}u",
+    "apply_all": "Aanbevolen waarden toepassen",
+    "history_title": "Inregelgeschiedenis",
+    "applied": "Toegepast",
+    "not_applied": "Enkel advies"
   }
 }
