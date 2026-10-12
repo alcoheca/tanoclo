@@ -13,7 +13,6 @@ async function checkConfigReadonly(homeId) {
     const pool = db.getPool();
     const [homes] = await pool.execute('SELECT zone_config_readonly, dev_bypass FROM homes WHERE id = ?', [homeId]);
     if (homes.length === 0) return { isReadOnly: false, devBypass: false };
-    const config = require('../../lib/config');
     const isReadOnly = homes[0].zone_config_readonly === null ? config.zoneConfigReadonly : Boolean(homes[0].zone_config_readonly);
     const devBypass = Boolean(homes[0].dev_bypass);
     return { isReadOnly, devBypass };

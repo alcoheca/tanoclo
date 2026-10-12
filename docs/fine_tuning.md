@@ -113,6 +113,60 @@ If `0x4160 > 100`, the firmware clamps the denominator to `100`. Therefore, valu
 
 *   **`temperature_offset` (`0x0140`)**: Calibration offset (`s16be`, scaled by `0.01` °C) to adjust readings affected by local draft patterns or heat pockets.
 
+### 2.4 Advisory Hydraulic Balancing
+The server includes an automated hydraulic balancing analyzer (`ws-server/lib/balancing-analyzer.js`) that analyzes heating cycles over a rolling time window (default 72 hours):
+*   **Rise-Rate Analysis**: Evaluates the median rate of temperature rise (°C/hour) across all radiator zones when active demand is asserted.
+*   **Reference Baseline**: Selects the slowest heating room (or user-defined reference zone) and calculates rate ratios for all other zones.
+*   **Sensitivity Calculation**: Translates rate disparities into recommended valve sensitivity denominators (`0x4160`, range 25–100):
+    $$\text{Target Sensitivity} = \text{clamp}\left(\text{round}\left(100 \times \frac{\text{Baseline Rate}}{\text{Zone Rate}}\right), 25, 100\right)$$
+*   **REST API Endpoints**:
+    *   `GET /api/v2/homes/{homeId}/balancing/analysis?hours=72`: Computes live balancing recommendations and saves a snapshot.
+    *   `POST /api/v2/homes/{homeId}/balancing/apply`: Batch-applies suggested sensitivities to physical TRVs and pushes config refresh commands.
+    *   `GET /api/v2/homes/{homeId}/balancing/history`: Retrieves the last 10 balancing analysis snapshots.
+
+### 2.5 Thermodynamic PID Tuning
+Correlated with hydraulic balancing, the thermodynamic PID analyzer (`ws-server/lib/pid-analyzer.js`) tunes the room-level closed-loop controller gains:
+*   **Transient Response Evaluation**: Analyzes temperature overshoot, steady-state error, and rise speed during heat calls.
+*   **Adaptive Gain Synthesis**: Calculates recommended gains:
+    *   $K_p$ (`0x6080`): Scaled to match room thermal mass and prevent under-heating or excessive oscillation.
+    *   $K_i$ (`0x60a0`): Adjusted to eliminate steady-state error without provoking integrator windup.
+    *   $K_d$ (`0x60c0`): Calibrated based on radiator thermal inertia to provide proportional damping before setpoint arrival.
+*   **REST API Endpoints**:
+    *   `GET /api/v2/homes/{homeId}/pid-tuning/analysis?hours=72`: Analyzes thermal response curves and generates PID gain recommendations.
+    *   `POST /api/v2/homes/{homeId}/pid-tuning/apply`: Applies gains (`0x6080`, `0x60a0`, `0x60c0`) to zone configurations and dispatches device refreshes.
+    *   `GET /api/v2/homes/{homeId}/pid-tuning/history`: Returns historical PID tuning snapshots and application timestamps.
+
+### 2.6 Custom Battery Discharge Curves & Motor Error Detection
+Battery monitoring (`ws-server/lib/battery.js`) supports custom non-linear discharge curves:
+*   **Multi-Point Calibration**: Accepts an array of 2 to 20 `[millivolts, percentage]` coordinates. Voltages between points are linearly interpolated.
+*   **Default Chemistries**: Standard curves provided for `alkaline`, `rechargeable` (NiMH), and `lithium` chemistries across VA, RU, and IB devices.
+*   **Motor Error Detection (VA only)**: Optional toggle (`va_motor_error_detection`) controlling whether hardware motor stall error flags (`0x01a3` / `0x0289`) trigger user alerts.
+*   **REST API Endpoints**:
+    *   `PUT /api/v2/homes/{homeId}/tanoclo/devices/{serial}/battery`: Updates battery type, custom discharge curve JSON, or motor error detection.
+    *   `GET /api/v2/homes/{homeId}/tanoclo/devices/{serial}/battery/defaultCurve?chemistry=alkaline`: Returns default curve points for the device family.
+
+### 2.7 Seasonal Heating Schedule Profiles
+Homes support multiple named schedule profiles (`ws-server/lib/db-schedule-profiles.js`) for different seasons:
+*   **Profile Storage**: Each profile encapsulates complete timetable definitions (`ONE_DAY`, `THREE_DAY`, `SEVEN_DAY`) and temperature blocks across all home zones.
+*   **Automated Calendar Transitions**: Profiles can specify an `auto_start_date` (`MM-DD` format, e.g. `10-15` for mid-October). The background cron evaluator automatically activates the matching seasonal profile.
+*   **REST API Endpoints**:
+    *   `GET /api/v2/homes/{homeId}/scheduleProfiles`: Lists all profiles and indicates the active profile ID.
+    *   `POST /api/v2/homes/{homeId}/scheduleProfiles`: Creates a new profile (supports copying existing timetables).
+    *   `GET /api/v2/homes/{homeId}/scheduleProfiles/{profileId}`: Retrieves full timetable blocks for all zones in the profile.
+    *   `PUT /api/v2/homes/{homeId}/scheduleProfiles/{profileId}`: Updates profile name, icon, description, or auto-start date.
+    *   `DELETE /api/v2/homes/{homeId}/scheduleProfiles/{profileId}`: Deletes a profile.
+    *   `POST /api/v2/homes/{homeId}/scheduleProfiles/{profileId}/activate`: Activates profile and applies all zone timetables to live database and devices.
+    *   `POST /api/v2/homes/{homeId}/scheduleProfiles/{profileId}/capture`: Snapshots the current live zone timetables into this profile.
+    *   `PUT /api/v2/homes/{homeId}/scheduleProfiles/{profileId}/zones/{zoneId}/blocks`: Updates schedule blocks for a specific zone within the profile.
+
+### 2.8 Boiler Flow Temperature Optimization & Auto-Adaptation
+For OpenTherm boiler systems, the flow temperature optimizer (`ws-server/lib/flow-optimizer.js`) automatically regulates water supply temperature:
+*   **Demand-Based Curves**: Regulates max flow temperature (`0x2040`) between configured minimum (e.g. 30°C) and maximum (e.g. 70°C) limits based on weather and aggregate room demand.
+*   **REST API Endpoints**:
+    *   `GET /api/v2/homes/{homeId}/flowTemperatureOptimization`: Returns current limits, OpenTherm device info, and auto-adaptation telemetry.
+    *   `PUT /api/v2/homes/{homeId}/flowTemperatureOptimization`: Updates min/max limits and toggles auto-adaptation.
+    *   `GET /api/v2/homes/{homeId}/flowTemperatureHistory`: Returns timestamped logs of flow temperature optimization decisions.
+
 ---
 
 ## 3. Viewing & Changing Fine-Tuning Settings
@@ -128,9 +182,16 @@ To protect the system from accidental misconfigurations, all advanced tuning and
      - Display Orientation (Vertical / Horizontal)
      - Screensaver Timeout (Minutes)
      - Valve Travel Limits (Zero-Level Steps, Full-Travel Steps, Calibration Constant)
-3. **For OWD Sensitivity and Temperature Offsets:**
+     - Valve Stroke Sensitivity Denominator (25–100)
+     - Custom Battery Discharge Curve & Motor Error Detection
+3. **For Zone PID Gains and OWD Settings:**
    - Go to the **Climate Zone** page for the target room.
    - Click **Zone Settings** -> **Advanced Settings**. Here you can adjust:
-     - OWD Temperature Drop Limit (°C)
+     - Closed-Loop PID Proportional Gain ($K_p$, default `10.00`)
+     - Closed-Loop PID Integral Gain ($K_i$, default `5.00`)
+     - Closed-Loop PID Derivative Gain ($K_d$, default `15.00`)
      - OWD Shutoff Duration (Minutes)
      - Calibration Temperature Offset (°C)
+4. **For System Optimization & Schedules:**
+   - Go to **Settings** -> **Server** to access **Hydraulic Balancing** and **Thermodynamic PID Tuning** advisors.
+   - Go to **Settings** -> **Schedules** to create, edit, capture, and switch **Seasonal Schedule Profiles**.

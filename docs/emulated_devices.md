@@ -251,3 +251,28 @@ max_exceeded: silent
 > **Customizing Entities:**
 > - **Input Entities:** Replace `sensor.living_room_temperature` and `sensor.living_room_humidity` with any temperature (°C) and humidity (%) entities in your Home Assistant instance. Any source device (Zigbee, Z-Wave, BLE, ESPHome, or other Tado devices) can be used.
 > - **Target Entities:** Replace `number.emulated_ru02_ru0000000000_emulated_temperature`, `number.emulated_ru02_ru0000000000_emulated_humidity`, and `button.emulated_ru02_ru0000000000_send_telemetry_push` with your emulated device's specific entity IDs (derived from your emulated device's serial number).
+
+---
+
+## 6. Closed-Loop PID Control Law & NVS State Persistence
+
+Emulated Room Units (`RU01` / `RU02`) use the following closed-loop PID control laws:
+
+### 6.1 Control Laws & Calculations
+*   **Proportional Term ($P$)**:
+    $$P = \Delta T_{0.01} \times \frac{K_p}{2000}$$
+*   **Integral Term with Anti-Windup ($I$)**:
+    Accumulator integrates temperature error periodically. Clamped to $3\,000\,000 / K_p$ to prevent integrator windup:
+    $$I = \frac{K_i \times \text{Accumulator}}{30000}$$
+*   **Derivative Term ($D$)**:
+    Provides dynamic braking against rapid temperature rise:
+    $$D = \frac{K_d \times (T_{\text{current}} - T_{\text{previous}})_{0.01}}{2000}$$
+*   **Final Output Demand**:
+    $$\text{Demand}(0\text{x}40a0) = \text{clamp}(P + I - D, 0, 100)\%$$
+
+### 6.2 Configuration & Flash Memory (NVS)
+*   **Zone Config Extraction**: When the emulated RU receives its zone configuration via CoAP, it extracts the provisioned gains from TLVs:
+    *   $K_p$: FID `0x6080` (default `1000` / `10.00`)
+    *   $K_i$: FID `0x60a0` (default `500` / `5.00`)
+    *   $K_d$: FID `0x60c0` (default `1500` / `15.00`)
+*   **NVS Persistence**: All three gains, along with the running accumulator (`acc`) and previous temperature baseline (`pt`), are persisted to non-volatile flash storage (NVS), surviving device restarts.

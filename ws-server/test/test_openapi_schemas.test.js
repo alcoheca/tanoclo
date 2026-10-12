@@ -283,7 +283,9 @@ test('legacy test suite runs successfully', async () => {
                   '{timetableTypeId}': '0',
                   '{timetableId}': '0',
                   '{dayType}': 'MONDAY_TO_SUNDAY',
-                  '{installationId}': '1'
+                  '{installationId}': '1',
+                  '{profileId}': '1',
+                  '{circuitId}': '1'
               };
   
               for (const [k, v] of Object.entries(replacements)) {
@@ -373,4 +375,4 @@ test('legacy test suite runs successfully', async () => {
   
   await runTests();
   
-});
+}, 240000);

@@ -277,9 +277,35 @@ If the server needs to push a large configuration block (e.g. daily schedule tra
 1.  **Block Option**: Includes `OPT_BLOCK1` inside the CoAP options array carrying block number, more flag, and size exponent.
 2.  **Pagination Flow**: The server transmits block 0, awaits a `2.31 Continue` ACK from the device, then transmits subsequent blocks until finalization (`M = 0`).
 
+#### Sleepy End Device Downlink Queueing
+Battery-powered devices (Valve Actuators `VA...`) operate in low-power sleepy mode to conserve battery. Their RF receivers are disabled most of the time, waking briefly every few seconds to transmit telemetry (`/d/{serial}/sen`) or status updates (`/z/{id}/p`):
+*   **Activity Detection (`isDeviceAwake`)**: Devices are marked awake for a window of **`SLEEPY_AWAKE_WINDOW_MS = 4000ms`** following any inbound packet.
+*   **Downlink Interception**: When a configuration or setting push (`d/config`, `d/lock`, etc.) targets an asleep VA device, the command is placed into a per-device downlink queue (`_sleepyDownlinkQueue`) instead of transmitting immediately and timing out.
+*   **Deduplication & TTL**: The queue coalesces requests by URI path key (keeping only the newest command for a given endpoint) with a 2-hour TTL (`QUEUE_TTL_MS = 7200000ms`).
+*   **Wakeup Drain**: Upon receiving the next inbound packet from the device, `drainSleepyDownlink` fires: the queued commands are dispatched in sequence with 150ms pacing between transmissions.
+
 ---
 
-### 5.3 Scheduled Cron Maintenance (`ws-server/lib/cron.js`)
+### 5.3 6LoWPAN / CoAP Mesh Recovery & Keep-Alive Manager (`ws-server/lib/mesh-recovery.js`)
+
+Provides automated recovery mechanisms for 802.15.4 / 6LoWPAN RF mesh devices without human intervention:
+
+*   **Auto-Recovery on Zone Fallback**: When a zone reports communication timeout or fallback states (`0x6460: 3`), the server proactively probes zone nodes with confirmable `CON GET /d/info` requests. This triggers ICMPv6 Neighbor Solicitation / Neighbor Advertisement (NS/NA) exchanges across the bridge, repopulating IPv6 Neighbor Unreachability Detection (NUD) tables before entries get evicted into garbage collection.
+*   **Proactive Route Keep-Alive**: Periodically executes background scans (`KEEP_ALIVE_INTERVAL_MS = 15m`). If any active mesh node has had no contact for more than 12 minutes (`DEVICE_INACTIVE_THRESHOLD_MS = 12m`), the server issues lightweight `CON GET /d/info` probes with `Accept: 42 (application/octet-stream)` to keep Contiki NUD table entries in `NBR_REACHABLE` state.
+*   **Fallback Escalation (Auto-Reboot)**: If repeated probes fail to restore communication across multiple cooldown intervals (`PROBE_COOLDOWN_MS = 3m`, `MAX_PROBES_BEFORE_REBOOT = 2`), the subsystem can optionally escalate to a software reboot command via `POST d/reboot` (`AUTO_REBOOT_ENABLED = false` by default to preserve battery life and prevent unneeded TRV recalibration cycles).
+
+---
+
+### 5.4 RF Congestion & Thundering Herd Prevention (`ws-server/lib/handlers/coap-helpers.js`)
+
+To prevent RF collisions and packet drops over half-duplex CC2544 802.15.4 radio links:
+
+*   **ETag Normalization & Conditional GET**: Client ETag options are normalized to stable 8-byte identifiers (`normalizeEtag`). When a device re-queries configuration with a matching ETag in block 0, the server immediately returns `2.03 Valid` without re-transmitting multi-block payloads.
+*   **Bridge Downlink Pacing**: Multi-block CoAP downlink chunks (`sendCoAPWithBlock2`) enforce a mandatory minimum inter-block airtime delay (`MIN_INTER_BLOCK_GAP_MS = 250ms`) per bridge connection (`bridgeLastBlockTs`). This guarantees radio buffers in the Internet Bridge CC2544 SPI FIFO do not overrun and prevents half-duplex RF collisions with sleepy device uplink beacons.
+
+---
+
+### 5.5 Scheduled Cron Maintenance (`ws-server/lib/cron.js`)
 
 A dedicated background cron manager schedules and triggers maintenance actions:
 

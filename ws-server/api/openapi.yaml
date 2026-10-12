@@ -8,7 +8,7 @@ info:
     This specification builds upon the community-managed Tado OpenAPI v2
     specification by kritsel (available at
     https://github.com/kritsel/tado-openapispec-v2).
-  version: 2026.09.11.1
+  version: 2026.10.12.1
 servers:
   - url: /api/v2
     description: TaNoClo API v2 base
@@ -616,6 +616,130 @@ paths:
           $ref: "#/components/responses/AccessDenied403"
         "422":
           $ref: "#/components/responses/InputError422"
+  /homes/{homeId}/flowTemperatureHistory:
+    get:
+      summary: Retrieve boiler flow temperature optimization log history.
+      operationId: getFlowTemperatureHistory
+      tags:
+        - home
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+            maximum: 288
+          required: false
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlowTemperatureHistoryResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+  /homes/{homeId}/heatingCircuits/{circuitId}/flowTemperatureOptimization:
+    get:
+      summary: Get boiler water temperature optimization specifics for a heating circuit.
+      operationId: getCircuitFlowTemperatureOptimization
+      tags:
+        - home
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: path
+          name: circuitId
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlowTemperatureOptimization"
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+        "404":
+          $ref: "#/components/responses/NotFound404"
+    put:
+      summary: Set boiler water temperature optimization specifics for a heating circuit.
+      operationId: setCircuitFlowTemperatureOptimization
+      tags:
+        - home
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: path
+          name: circuitId
+          schema:
+            type: integer
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlowTemperatureOptimizationInput"
+      responses:
+        "204":
+          description: successful response
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+  /homes/{homeId}/heatingCircuits/{circuitId}/flowTemperatureHistory:
+    get:
+      summary: Retrieve boiler flow temperature optimization history for a heating circuit.
+      operationId: getCircuitFlowTemperatureHistory
+      tags:
+        - home
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: path
+          name: circuitId
+          schema:
+            type: integer
+          required: true
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+            maximum: 288
+          required: false
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlowTemperatureHistoryResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
   /homes/{homeId}/weather:
     get:
       summary: Get the current weather for the given home.
@@ -2862,6 +2986,537 @@ paths:
           $ref: "#/components/responses/AccessDenied403"
         "404":
           $ref: "#/components/responses/NotFound404"
+  /homes/{homeId}/balancing/analysis:
+    get:
+      summary: Run hydraulic balancing analysis and return recommendations
+      operationId: getHydraulicBalancingAnalysis
+      tags:
+        - balancing
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: query
+          name: hours
+          schema:
+            type: integer
+            default: 72
+            minimum: 1
+          required: false
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalancingAnalysis"
+        "400":
+          description: analysis failed
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+        "422":
+          description: insufficient data
+  /homes/{homeId}/balancing/apply:
+    post:
+      summary: Apply suggested valve sensitivity settings to devices
+      operationId: applyHydraulicBalancing
+      tags:
+        - balancing
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BalancingApplyInput"
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  appliedCount:
+                    type: integer
+                  devices:
+                    type: array
+                    items:
+                      type: object
+        "400":
+          description: invalid request body
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+  /homes/{homeId}/balancing/history:
+    get:
+      summary: Retrieve historical hydraulic balancing snapshots
+      operationId: getHydraulicBalancingHistory
+      tags:
+        - balancing
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshots:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BalancingSnapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+  /homes/{homeId}/pid-tuning/analysis:
+    get:
+      summary: Run thermodynamic PID tuning analysis and compute room gain recommendations
+      operationId: getPidTuningAnalysis
+      tags:
+        - pid-tuning
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: query
+          name: hours
+          schema:
+            type: integer
+            default: 72
+            minimum: 1
+          required: false
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PidTuningAnalysis"
+        "400":
+          description: analysis failed
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+        "404":
+          description: no heating zones found
+  /homes/{homeId}/pid-tuning/apply:
+    post:
+      summary: Apply suggested PID gains (Kp, Ki, Kd) to zones
+      operationId: applyPidTuning
+      tags:
+        - pid-tuning
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PidTuningApplyInput"
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  appliedCount:
+                    type: integer
+                  zones:
+                    type: array
+                    items:
+                      type: object
+        "400":
+          description: invalid request body
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+  /homes/{homeId}/pid-tuning/history:
+    get:
+      summary: Retrieve historical PID tuning snapshots
+      operationId: getPidTuningHistory
+      tags:
+        - pid-tuning
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PidTuningSnapshot"
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+  /homes/{homeId}/scheduleProfiles:
+    get:
+      summary: Retrieve all heating schedule profiles for a home
+      operationId: getScheduleProfiles
+      tags:
+        - schedule-profiles
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activeProfileId:
+                    type: integer
+                    nullable: true
+                  profiles:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ScheduleProfile"
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+    post:
+      summary: Create a new heating schedule profile
+      operationId: createScheduleProfile
+      tags:
+        - schedule-profiles
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduleProfileInput"
+      responses:
+        "201":
+          description: profile created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleProfileDetails"
+        "400":
+          description: invalid name or parameters
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+  /homes/{homeId}/scheduleProfiles/{profileId}:
+    get:
+      summary: Get details and zone timetables for a schedule profile
+      operationId: getScheduleProfileDetails
+      tags:
+        - schedule-profiles
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: path
+          name: profileId
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleProfileDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+        "404":
+          description: profile not found
+    put:
+      summary: Update metadata of a schedule profile
+      operationId: updateScheduleProfile
+      tags:
+        - schedule-profiles
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: path
+          name: profileId
+          schema:
+            type: integer
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateScheduleProfileInput"
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleProfileDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+    delete:
+      summary: Delete a schedule profile
+      operationId: deleteScheduleProfile
+      tags:
+        - schedule-profiles
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: path
+          name: profileId
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  deletedProfileId:
+                    type: integer
+        "400":
+          description: delete failed
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+  /homes/{homeId}/scheduleProfiles/{profileId}/activate:
+    post:
+      summary: Activate a schedule profile and apply all its zone timetables to live system
+      operationId: activateScheduleProfile
+      tags:
+        - schedule-profiles
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: path
+          name: profileId
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  activatedProfileId:
+                    type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+  /homes/{homeId}/scheduleProfiles/{profileId}/capture:
+    post:
+      summary: Capture current live zone timetables into this schedule profile
+      operationId: captureScheduleProfile
+      tags:
+        - schedule-profiles
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: path
+          name: profileId
+          schema:
+            type: integer
+          required: true
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleProfileDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+  /homes/{homeId}/scheduleProfiles/{profileId}/zones/{zoneId}/blocks:
+    put:
+      summary: Save schedule blocks for a zone in a specific schedule profile
+      operationId: updateScheduleProfileZoneBlocks
+      tags:
+        - schedule-profiles
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: path
+          name: profileId
+          schema:
+            type: integer
+          required: true
+        - in: path
+          name: zoneId
+          schema:
+            $ref: "#/components/schemas/ZoneId"
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleProfileZoneBlocksInput"
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        "400":
+          description: invalid blocks
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+  /homes/{homeId}/devices/{deviceId}/valveSensitivity:
+    get:
+      summary: Get valve sensitivity denominator for a device in this home
+      operationId: getHomeDeviceValveSensitivity
+      tags:
+        - device
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: path
+          name: deviceId
+          schema:
+            $ref: "#/components/schemas/DeviceId"
+          required: true
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValveSensitivity"
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+        "404":
+          description: device not found
+    put:
+      summary: Set valve sensitivity denominator (0x4160) for a device in this home
+      operationId: setHomeDeviceValveSensitivity
+      tags:
+        - device
+      parameters:
+        - in: path
+          name: homeId
+          schema:
+            $ref: "#/components/schemas/HomeId"
+          required: true
+        - in: path
+          name: deviceId
+          schema:
+            $ref: "#/components/schemas/DeviceId"
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ValveSensitivity"
+      responses:
+        "200":
+          description: successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValveSensitivity"
+        "400":
+          description: invalid value
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+        "404":
+          description: device not found
   /api/public/health:
     get:
       summary: Public health check endpoint
@@ -3072,6 +3727,12 @@ paths:
                     friendly_name:
                       type: string
                       nullable: true
+                    battery_curve_custom:
+                      type: string
+                      nullable: true
+                    va_motor_error_detection:
+                      type: integer
+                      nullable: true
       tags:
         - tanoclo
   /homes/{homeId}/tanoclo/devices/{deviceId}/raw:
@@ -3223,6 +3884,155 @@ paths:
                       nullable: true
       tags:
         - tanoclo
+  /homes/{homeId}/tanoclo/circuits/{circuitId}/raw:
+    get:
+      summary: Get raw database rows and measurements for a heating circuit
+      operationId: getTanocloCircuitRaw
+      tags:
+        - tanoclo
+      parameters:
+        - name: homeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: circuitId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Raw circuit details and measurement telemetry.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  circuit:
+                    type: object
+                  measurements:
+                    type: array
+                    items:
+                      type: object
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+        "404":
+          description: Circuit not found
+  /homes/{homeId}/tanoclo/circuits/{circuitId}/dayReport:
+    get:
+      summary: Get 24-hour day report time series for a heating circuit
+      operationId: getTanocloCircuitDayReport
+      tags:
+        - tanoclo
+      parameters:
+        - name: homeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: circuitId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Circuit day report telemetry intervals.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  circuitNumber:
+                    type: integer
+                  driverSerial:
+                    type: string
+                    nullable: true
+                  interval:
+                    type: object
+                  hoursInDay:
+                    type: integer
+                  measuredData:
+                    type: object
+                  flameState:
+                    type: object
+                  zoneHeatRequests:
+                    type: array
+                    items:
+                      type: object
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+        "404":
+          description: Circuit not found
+  /homes/{homeId}/tanoclo/circuits/{circuitId}/runningTimes:
+    get:
+      summary: Get historical running times and zone contribution breakdown for a circuit
+      operationId: getTanocloCircuitRunningTimes
+      tags:
+        - tanoclo
+      parameters:
+        - name: homeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: circuitId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: aggregate
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ day, month ]
+            default: day
+      responses:
+        "200":
+          description: Circuit running times breakdown.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  circuitNumber:
+                    type: integer
+                  summary:
+                    type: object
+                  runningTimes:
+                    type: array
+                    items:
+                      type: object
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
+        "404":
+          description: Circuit not found
   /homes/{homeId}/tanoclo/bridge:
     get:
       summary: Get bridge configuration and firmware status
@@ -3278,15 +4088,24 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - batteryType
               properties:
                 batteryType:
                   type: string
-                  example: AAA
+                  example: alkaline
+                customCurve:
+                  type: array
+                  nullable: true
+                  description: Array of 2 to 20 [mV, percent] pairs sorted descending by mV, or null to reset.
+                  items:
+                    type: array
+                    items:
+                      type: number
+                motorErrorDetection:
+                  type: boolean
+                  description: Enable or disable motor stall error detection (VA devices only).
       responses:
         "200":
-          description: Successfully updated device battery type.
+          description: Successfully updated device battery settings.
           content:
             application/json:
               schema:
@@ -3297,9 +4116,55 @@ paths:
                     example: true
                   batteryType:
                     type: string
-                    example: AAA
+                    example: alkaline
+                  batteryPercent:
+                    type: number
+                    nullable: true
+                  batteryState:
+                    type: string
+                    nullable: true
+        "400":
+          description: Invalid parameters or unsupported device.
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
       tags:
         - tanoclo
+  /homes/{homeId}/tanoclo/devices/{serial}/battery/defaultCurve:
+    get:
+      summary: Get default battery discharge curve for device chemistry
+      operationId: getDefaultBatteryCurve
+      tags:
+        - tanoclo
+      parameters:
+        - name: homeId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: serial
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: chemistry
+          in: query
+          required: false
+          schema:
+            type: string
+            default: alkaline
+      responses:
+        "200":
+          description: Default battery curve for device family and chemistry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DefaultBatteryCurveResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized401"
+        "403":
+          $ref: "#/components/responses/AccessDenied403"
   /homes/{homeId}/tanoclo/zones/{zoneId}/dayReport:
     get:
       summary: Get custom day report data
@@ -5447,7 +6312,7 @@ components:
       properties:
         valveSensitivity:
           type: integer
-          minimum: 50
+          minimum: 25
           maximum: 100
           example: 100
     DataInterval:
@@ -5816,21 +6681,21 @@ components:
           description: >
             Not clear if this property always represents a centigrade value, or
             if the unit is based on `Home.temperatureUnit`
+        minFlowTemperature:
+          type: integer
+          example: 30
+        maxFlowTemperatureLimit:
+          type: integer
+          example: 80
         maxFlowTemperatureConstraints:
           type: object
           properties:
             min:
               type: integer
               example: 30
-              description: >
-                Not clear if this property always represents a centigrade value,
-                or if the unit is based on `Home.temperatureUnit`
             max:
               type: integer
               example: 80
-              description: >
-                Not clear if this property always represents a centigrade value,
-                or if the unit is based on `Home.temperatureUnit`
         autoAdaptation:
           type: object
           properties:
@@ -5840,17 +6705,45 @@ components:
             maxFlowTemperature:
               type: integer
               nullable: true
+            currentActualFlowTemperature:
+              type: number
+              nullable: true
+            currentReturnTemperature:
+              type: number
+              nullable: true
+            currentModulation:
+              type: integer
+              nullable: true
+            currentOutsideTemperature:
+              type: number
+              nullable: true
+            lastReason:
+              type: string
+              nullable: true
+            lastOptimized:
+              type: string
+              nullable: true
         openThermDeviceSerialNumber:
           type: string
+          nullable: true
     FlowTemperatureOptimizationInput:
+      type: object
       description: Input for 'PUT /homes/{homeId}/flowTemperatureOptimization'
       properties:
         maxFlowTemperature:
           type: number
           example: 50
-          description: >
-            Not clear if this property always represents a centigrade value, or
-            if the unit is based on `Home.temperatureUnit`
+        minFlowTemperature:
+          type: number
+          nullable: true
+        maxFlowTemperatureLimit:
+          type: number
+          nullable: true
+        autoAdaptation:
+          type: object
+          properties:
+            enabled:
+              type: boolean
     HeatingCircuit:
       type: object
       description: |
@@ -6928,6 +7821,42 @@ components:
             timeoutInSeconds:
               type: integer
               example: 900
+        kp:
+          type: number
+          example: 10.0
+          description: Proportional gain (Kp, 0x6080) for closed-loop PID control
+        ki:
+          type: number
+          example: 5.0
+          description: Integral gain (Ki, 0x60a0) for closed-loop PID control
+        kd:
+          type: number
+          example: 15.0
+          description: Derivative gain (Kd, 0x60c0) for closed-loop PID control
+        pidTuning:
+          type: object
+          properties:
+            kp:
+              type: number
+              example: 10.0
+            ki:
+              type: number
+              example: 5.0
+            kd:
+              type: number
+              example: 15.0
+        tanocloOwdEnabled:
+          type: boolean
+          example: false
+        tanocloOwdSource:
+          type: string
+          example: device
+        offlineScheduleEnabled:
+          type: boolean
+          example: false
+        earlyStartEnabled:
+          type: boolean
+          example: false
     ZoneAwayConfiguration:
       type: object
       description: >
@@ -7067,6 +7996,27 @@ components:
         name:
           type: string
           example: bed room
+        kp:
+          type: number
+          example: 10.0
+        ki:
+          type: number
+          example: 5.0
+        kd:
+          type: number
+          example: 15.0
+        pidTuning:
+          type: object
+          properties:
+            kp:
+              type: number
+              example: 10.0
+            ki:
+              type: number
+              example: 5.0
+            kd:
+              type: number
+              example: 15.0
     ZoneId:
       type: integer
       example: 3
@@ -7343,6 +8293,334 @@ components:
         - HEATING
         - HOT_WATER
       example: HEATING
+    FlowTemperatureHistoryResponse:
+      type: object
+      properties:
+        homeId:
+          type: string
+        history:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              home_id:
+                type: integer
+              timestamp:
+                type: string
+              computed_flow_temp:
+                type: string
+                nullable: true
+              actual_flow_temp:
+                type: string
+                nullable: true
+              outside_temp:
+                type: string
+                nullable: true
+              max_zone_error:
+                type: string
+                nullable: true
+              modulation_pct:
+                type: integer
+                nullable: true
+              demand_pct:
+                type: integer
+                nullable: true
+              reason:
+                type: string
+                nullable: true
+    DefaultBatteryCurveResponse:
+      type: object
+      properties:
+        curve:
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+        devicePrefix:
+          type: string
+        chemistry:
+          type: string
+    BalancingAnalysis:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        generatedAt:
+          type: string
+        windowHours:
+          type: integer
+        referenceZone:
+          type: object
+          properties:
+            zoneId:
+              type: integer
+            name:
+              type: string
+            medianRiseRate:
+              type: number
+        recommendations:
+          type: array
+          items:
+            type: object
+            properties:
+              deviceId:
+                type: string
+              zoneId:
+                type: integer
+              zoneName:
+                type: string
+              currentSensitivity:
+                type: integer
+              suggestedSensitivity:
+                type: integer
+              medianRiseRate:
+                type: number
+              rateRatio:
+                type: number
+              action:
+                type: string
+        snapshotId:
+          type: integer
+          nullable: true
+    BalancingApplyInput:
+      type: object
+      required:
+        - devices
+      properties:
+        devices:
+          type: array
+          items:
+            type: object
+            required:
+              - deviceId
+            properties:
+              deviceId:
+                type: string
+              valveSensitivity:
+                type: integer
+        snapshotId:
+          type: integer
+          nullable: true
+    BalancingSnapshot:
+      type: object
+      properties:
+        id:
+          type: integer
+        homeId:
+          type: integer
+        createdAt:
+          type: string
+        applied:
+          type: boolean
+        appliedAt:
+          type: string
+          nullable: true
+        analysis:
+          type: object
+    PidTuningAnalysis:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        generatedAt:
+          type: string
+        windowHours:
+          type: integer
+        zones:
+          type: array
+          items:
+            type: object
+            properties:
+              zoneId:
+                type: integer
+              name:
+                type: string
+              type:
+                type: string
+              currentGains:
+                type: object
+                properties:
+                  kp:
+                    type: number
+                  ki:
+                    type: number
+                  kd:
+                    type: number
+              suggestedGains:
+                type: object
+                properties:
+                  kp:
+                    type: number
+                  ki:
+                    type: number
+                  kd:
+                    type: number
+              metrics:
+                type: object
+        hydraulicBaseline:
+          type: object
+          nullable: true
+        snapshotId:
+          type: integer
+          nullable: true
+    PidTuningApplyInput:
+      type: object
+      required:
+        - zones
+      properties:
+        zones:
+          type: array
+          items:
+            type: object
+            properties:
+              zoneId:
+                type: integer
+              kp:
+                type: number
+              ki:
+                type: number
+              kd:
+                type: number
+        snapshotId:
+          type: integer
+          nullable: true
+    PidTuningSnapshot:
+      type: object
+      properties:
+        id:
+          type: integer
+        homeId:
+          type: integer
+        hydraulicSnapshotId:
+          type: integer
+          nullable: true
+        createdAt:
+          type: string
+        applied:
+          type: boolean
+        appliedAt:
+          type: string
+          nullable: true
+        analysis:
+          type: object
+    ScheduleProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        icon:
+          type: string
+        description:
+          type: string
+        isActive:
+          type: boolean
+        autoStartDate:
+          type: string
+          nullable: true
+        orderIndex:
+          type: integer
+        zonesCount:
+          type: integer
+    ScheduleProfileDetails:
+      type: object
+      properties:
+        id:
+          type: integer
+        home_id:
+          type: integer
+        name:
+          type: string
+        icon:
+          type: string
+        description:
+          type: string
+        is_active:
+          type: integer
+        auto_start_date:
+          type: string
+          nullable: true
+        order_index:
+          type: integer
+        zones:
+          type: array
+          items:
+            type: object
+            properties:
+              zoneId:
+                type: integer
+              zoneName:
+                type: string
+              zoneType:
+                type: string
+              timetableType:
+                type: string
+              blocks:
+                type: array
+                items:
+                  type: object
+    CreateScheduleProfileInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: Winter Heating
+        icon:
+          type: string
+          example: snowflake
+        description:
+          type: string
+          example: Schedule with higher comfort temperatures for cold season
+        autoStartDate:
+          type: string
+          example: "10-15"
+        copyFromProfileId:
+          type: integer
+          nullable: true
+    UpdateScheduleProfileInput:
+      type: object
+      properties:
+        name:
+          type: string
+        icon:
+          type: string
+        description:
+          type: string
+        autoStartDate:
+          type: string
+          nullable: true
+        orderIndex:
+          type: integer
+    ScheduleProfileZoneBlocksInput:
+      type: object
+      required:
+        - timetableType
+        - blocks
+      properties:
+        timetableType:
+          type: string
+          enum: [ ONE_DAY, THREE_DAY, SEVEN_DAY ]
+        blocks:
+          type: array
+          items:
+            type: object
+            properties:
+              dayType:
+                type: string
+              start:
+                type: string
+              end:
+                type: string
+              geolocationOverride:
+                type: boolean
+              setting:
+                type: object
 tags:
   - name: user
     description: >
@@ -7379,3 +8657,9 @@ tags:
     description: Manage invitations.
   - name: ota
     description: Over-the-air update distribution for web client, Android APK, and server.
+  - name: balancing
+    description: Hydraulic balancing analysis and valve sensitivity tuning.
+  - name: pid-tuning
+    description: Thermodynamic PID tuning analysis and closed-loop control gain optimization.
+  - name: schedule-profiles
+    description: Seasonal heating schedule profiles and automated timetable transitions.

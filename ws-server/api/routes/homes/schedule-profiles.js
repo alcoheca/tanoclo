@@ -45,7 +45,10 @@ router.get('/:homeId/scheduleProfiles/:profileId', async (req, res) => {
 router.post('/:homeId/scheduleProfiles', async (req, res) => {
     try {
         const homeId = parseInt(req.params.homeId, 10);
-        if (await checkZoneConfigReadonly(homeId, res)) return;
+        const { isReadOnly, devBypass } = await checkZoneConfigReadonly(homeId);
+        if (isReadOnly && !devBypass) {
+            return res.status(403).json({ error: 'zone_config_readonly', message: 'Zone configuration is currently read-only' });
+        }
 
         const { name, icon, description, autoStartDate, copyFromProfileId } = req.body;
         if (!name || typeof name !== 'string') {
@@ -72,7 +75,10 @@ router.put('/:homeId/scheduleProfiles/:profileId', async (req, res) => {
     try {
         const homeId = parseInt(req.params.homeId, 10);
         const profileId = parseInt(req.params.profileId, 10);
-        if (await checkZoneConfigReadonly(homeId, res)) return;
+        const { isReadOnly, devBypass } = await checkZoneConfigReadonly(homeId);
+        if (isReadOnly && !devBypass) {
+            return res.status(403).json({ error: 'zone_config_readonly', message: 'Zone configuration is currently read-only' });
+        }
 
         const { name, icon, description, autoStartDate, orderIndex } = req.body;
         await dbScheduleProfiles.updateScheduleProfile(homeId, profileId, {
@@ -96,7 +102,10 @@ router.delete('/:homeId/scheduleProfiles/:profileId', async (req, res) => {
     try {
         const homeId = parseInt(req.params.homeId, 10);
         const profileId = parseInt(req.params.profileId, 10);
-        if (await checkZoneConfigReadonly(homeId, res)) return;
+        const { isReadOnly, devBypass } = await checkZoneConfigReadonly(homeId);
+        if (isReadOnly && !devBypass) {
+            return res.status(403).json({ error: 'zone_config_readonly', message: 'Zone configuration is currently read-only' });
+        }
 
         await dbScheduleProfiles.deleteScheduleProfile(homeId, profileId);
         res.json({ success: true, deletedProfileId: profileId });
@@ -111,7 +120,10 @@ router.post('/:homeId/scheduleProfiles/:profileId/activate', async (req, res) =>
     try {
         const homeId = parseInt(req.params.homeId, 10);
         const profileId = parseInt(req.params.profileId, 10);
-        if (await checkZoneConfigReadonly(homeId, res)) return;
+        const { isReadOnly, devBypass } = await checkZoneConfigReadonly(homeId);
+        if (isReadOnly && !devBypass) {
+            return res.status(403).json({ error: 'zone_config_readonly', message: 'Zone configuration is currently read-only' });
+        }
 
         const result = await dbScheduleProfiles.activateScheduleProfile(homeId, profileId);
         res.json(result);
@@ -126,7 +138,10 @@ router.post('/:homeId/scheduleProfiles/:profileId/capture', async (req, res) => 
     try {
         const homeId = parseInt(req.params.homeId, 10);
         const profileId = parseInt(req.params.profileId, 10);
-        if (await checkZoneConfigReadonly(homeId, res)) return;
+        const { isReadOnly, devBypass } = await checkZoneConfigReadonly(homeId);
+        if (isReadOnly && !devBypass) {
+            return res.status(403).json({ error: 'zone_config_readonly', message: 'Zone configuration is currently read-only' });
+        }
 
         await dbScheduleProfiles.captureCurrentSchedulesToProfile(homeId, profileId);
         const updated = await dbScheduleProfiles.getScheduleProfileDetails(homeId, profileId);
@@ -143,7 +158,10 @@ router.put('/:homeId/scheduleProfiles/:profileId/zones/:zoneId/blocks', async (r
         const homeId = parseInt(req.params.homeId, 10);
         const profileId = parseInt(req.params.profileId, 10);
         const zoneId = parseInt(req.params.zoneId, 10);
-        if (await checkZoneConfigReadonly(homeId, res)) return;
+        const { isReadOnly, devBypass } = await checkZoneConfigReadonly(homeId);
+        if (isReadOnly && !devBypass) {
+            return res.status(403).json({ error: 'zone_config_readonly', message: 'Zone configuration is currently read-only' });
+        }
 
         const { timetableType, blocks } = req.body;
         if (!Array.isArray(blocks)) {
