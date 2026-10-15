@@ -28,12 +28,12 @@ test('legacy test suite runs successfully', async () => {
                   serial_no, device_type, home_id,
                   current_fw_version, connection_state, in_pairing_mode,
                   cap_inside_temp_measurement, cap_identify, cap_radio_encryption_key_access,
-                  connection_state_timestamp, last_config_json
+                  connection_state_timestamp, field_0140
               ) VALUES (
                   ?, 'VA', 999999,
                   '1.0', 1, 0,
                   1, 1, 0,
-                  '2026-06-20T00:00:00Z', '{"temperature_offset": 0.0}'
+                  '2026-06-20T00:00:00Z', 0.0
               )
           `, [testSerial]);
   
@@ -42,12 +42,10 @@ test('legacy test suite runs successfully', async () => {
           await db.updateDeviceConfig(testSerial, { '0x0140': newOffset });
           const dev = await db.getDeviceByFullSerial(testSerial);
           if (!dev) throw new Error('Device not found');
-          const json = typeof dev.last_config_json === 'string' ? JSON.parse(dev.last_config_json) : (dev.last_config_json || {});
-
-          expect(json['0x0140']).toBe(newOffset);
+          expect(Number(dev.field_0140)).toBe(newOffset);
   
           console.log('\n2. Testing Template Building (Device)...');
-          const payload = await db.buildDeviceConfigTLV(testSerial);
+          const payload = await db.buildDeviceConfigTLV(testSerial, dev);
           const decoded = tlv.decode(payload);
   
           expect(decoded.fields['0x0140']).toBe(newOffset);

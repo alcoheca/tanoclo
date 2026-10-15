@@ -70,6 +70,11 @@ router.delete('/:homeId/zones/:zoneId/devices/:deviceId', async (req, res) => {
         const [counts] = await pool.execute('SELECT COUNT(*) as c FROM devices WHERE zone_id = ? AND home_id = ?', [zoneId, homeId]);
         if (counts[0].c === 0) {
             await db.purgeZone(homeId, zoneId);
+        } else {
+            const dbUtils = require('../../../lib/db-utils');
+            await dbUtils.syncZoneConfig(homeId, zoneId).catch(err => {
+                _log('warn', `Failed to sync zone config after removing device: ${err.message}`);
+            });
         }
 
         if (!devBypass) {
@@ -131,6 +136,10 @@ router.put('/:homeId/zones/:zoneId/control/heatingCircuit', async (req, res) => 
             }
 
             await pool.execute('UPDATE zones SET heating_circuit = ? WHERE id = ? AND home_id = ?', [newVal, zoneId, homeId]);
+            const dbUtils = require('../../../lib/db-utils');
+            await dbUtils.syncZoneConfig(homeId, zoneId).catch(err => {
+                _log('warn', `Failed to sync zone config after heating circuit update: ${err.message}`);
+            });
         } else {
             return res.status(404).json({ error: 'zone_not_found', message: 'Zone not found' });
         }

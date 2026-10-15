@@ -357,32 +357,9 @@ async function queryDeviceConfig(deviceSerial, coapPath) {
     const bridge = findBridgeForHome(dbDev.home_id);
     if (!bridge) throw new Error(`No bridge connected for home ${dbDev.home_id}`);
 
-    if (dbDev.last_config_json) {
-        _log('debug', `[cmd-api] Using cached DB last_config_json for ${deviceSerial} config query`);
-        try {
-            const rawFields = typeof dbDev.last_config_json === 'object' && dbDev.last_config_json !== null
-                ? dbDev.last_config_json
-                : JSON.parse(dbDev.last_config_json);
-            const fields = {};
-            const { CONFIG_FIDS_ORDER } = require('./db-utils');
-            const CONFIG_KEYS_ORDER = CONFIG_FIDS_ORDER.map(fid => '0x' + fid.toString(16).padStart(4, '0'));
-            for (const key of CONFIG_KEYS_ORDER) {
-                if (rawFields[key] !== undefined) {
-                    fields[key] = rawFields[key];
-                }
-            }
-            const payload = tlv.encodeFromFields(fields);
-            const etag = dbDev.config_etag ? dbDev.config_etag.toString('hex') : null;
-            return { payload, etag };
-        } catch (jsonErr) {
-            _log('error', `[cmd-api] Failed to parse last_config_json for ${deviceSerial}: ${jsonErr.message}`);
-        }
-    }
-
-    // Fallback: build canonical config from DB if last_config_json is missing
     try {
         const { buildDeviceConfigTLV } = require('./db-utils');
-        const payload = await buildDeviceConfigTLV(deviceSerial);
+        const payload = await buildDeviceConfigTLV(deviceSerial, dbDev);
         if (payload && payload.length > 0) {
             _log('debug', `[cmd-api] Built canonical DB config for ${deviceSerial} (${payload.length}B)`);
             const etag = dbDev.config_etag ? dbDev.config_etag.toString('hex') : null;

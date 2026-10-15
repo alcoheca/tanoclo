@@ -186,7 +186,7 @@ Tado devices aggressively cache configurations, sending an `OPT_ETAG` option to 
 When the Tado cloud returns `2.05 Content` payloads:
 1.  **Disk Capture**: The raw payload, path, ETag, and metadata are written to an append-only JSONL capture log under `log/config_capture/` using `lib/config-capture.js`. This capture is permanent and never overwritten.
 2.  **Database Synchronization**:
-    *   **Device Configurations (`/config`)**: Stores captured FIDs (e.g. `actuator_config`) inside `devices` (`last_config_json` and `config_field_015a`).
+    *   **Device Configurations (`/config`)**: Stores captured FIDs into dedicated columns in `devices` (e.g. `field_0158`, `field_015a`, `field_0140`).
     *   **HVAC Configurations (`/hvac`)**: Upserts settings into the `heating_systems` table.
     *   **Zone Configurations (`z/{id}/config`)**: Decodes and writes fields to the `zones` table.
     *   **Zone States (`z/{id}/s`)**: Extracts temperature target, overlay configuration, and overlays status, writing them to `zone_measurements` and updating `zone_overlays`.

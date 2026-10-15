@@ -140,44 +140,33 @@ async function updateZoneOpenWindow(homeId, zoneId, active) {
 async function updateZoneOpenWindowSettings(homeId, zoneId, enabled, timeout, owdNvmState = null) {
     if (!homeId) throw new Error('homeId is required for updateZoneOpenWindowSettings');
     const p = getPool();
-    // 1. Load last_config_json
-    const [rows] = await p.execute('SELECT last_config_json FROM zones WHERE id = ? AND home_id = ?', [zoneId, homeId]);
-    let mergedConfig = rows.length > 0 ? safeJsonParse(rows[0].last_config_json) : {};
-
-    // 2. Merge updated settings into JSON template
-    mergedConfig['0x60e0'] = enabled ? 1 : 0;
-    mergedConfig['0x62c0'] = timeout;
 
     const updates = ['open_window_enabled = ?', 'open_window_timeout = ?'];
     const params = [enabled ? 1 : 0, timeout];
 
     if (owdNvmState !== null && owdNvmState !== undefined) {
-        mergedConfig['0x6340'] = owdNvmState;
         updates.push('field_6340 = ?');
         params.push(owdNvmState);
     }
 
-    updates.push('last_config_json = ?');
-    params.push(JSON.stringify(mergedConfig));
-
     params.push(zoneId, homeId);
 
-    // 3. Temporarily update columns so buildZoneConfigTLV generates the correct payload
     await p.execute(
         `UPDATE zones SET ${updates.join(', ')} WHERE id = ? AND home_id = ?`,
         params
     );
 
-    // 4. Generate the new config_etag by encoding and hashing the updated payload
     const dbUtils = require('../db-utils');
-    const payload = await dbUtils.buildZoneConfigTLV(homeId, zoneId);
-    const configEtag = generateEtag(payload);
-
-    // 5. Save the generated ETag
-    await p.execute(
-        'UPDATE zones SET config_etag = ? WHERE id = ? AND home_id = ?',
-        [configEtag, zoneId, homeId]
-    );
+    if (typeof dbUtils.syncZoneConfig === 'function') {
+        await dbUtils.syncZoneConfig(homeId, zoneId);
+    } else {
+        const payload = await dbUtils.buildZoneConfigTLV(homeId, zoneId);
+        const configEtag = generateEtag(payload);
+        await p.execute(
+            'UPDATE zones SET config_etag = ?, config_etag_real = NULL WHERE id = ? AND home_id = ?',
+            [configEtag, zoneId, homeId]
+        );
+    }
 }
 
 async function getZoneDefaultOverlay(homeId, zoneId) {

@@ -168,22 +168,6 @@ async function evaluateHome(homeId) {
         );
         if (weatherRows.length > 0 && weatherRows[0].outside_temp_celsius !== null) {
             outsideTemp = parseFloat(weatherRows[0].outside_temp_celsius);
-        } else {
-            // Fallback to boiler sensor (OT ID 27 / 0x044f) in heating_systems
-            const [hsRows] = await pool.execute(
-                'SELECT last_config_json FROM heating_systems WHERE home_id = ?',
-                [homeId]
-            );
-            if (hsRows.length > 0 && hsRows[0].last_config_json) {
-                try {
-                    const cfg = typeof hsRows[0].last_config_json === 'object'
-                        ? hsRows[0].last_config_json
-                        : JSON.parse(hsRows[0].last_config_json);
-                    if (cfg['0x044f'] !== undefined) {
-                        outsideTemp = parseFloat(cfg['0x044f']);
-                    }
-                } catch (e) {}
-            }
         }
 
         // 3. Hourly Forecast

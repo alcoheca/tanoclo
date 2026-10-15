@@ -15,11 +15,11 @@ const tlv = require('../tlv');
 const { getLocalParts, parseLocalTimeInTimezone } = require('../utils');
 const { OVERLAY_MODE, overlayModeFor } = require('../overlay-codes');
 
-const ALLOWED_ZONE_CONFIG_COLS = new Set(['last_config_json', 'config_etag', 'dazzle_enabled', 'field_60a0', 'field_60c0', 'field_6080', 'field_6340']);
-const ALLOWED_ZONE_DEVICE_CONFIG_COLS = new Set(['last_config_json', 'field_0140', 'field_0149', 'field_0158', 'field_015a', 'config_etag']);
+const ALLOWED_ZONE_CONFIG_COLS = new Set(['config_etag', 'config_etag_real', 'dazzle_enabled', 'field_60a0', 'field_60c0', 'field_6080', 'field_6340']);
+const ALLOWED_ZONE_DEVICE_CONFIG_COLS = new Set(['field_0140', 'field_0149', 'field_0158', 'field_015a', 'config_etag']);
 const ALLOWED_CIRCUIT_STATE_COLS = new Set(['field_4040', 'field_4000', 'field_4080', 'field_2090']);
 const ALLOWED_HEATING_SYSTEM_COLS = new Set([
-    'home_id', 'hvac_updated_at', 'last_config_json', 'hvac_etag',
+    'home_id', 'hvac_updated_at', 'hvac_etag',
     'field_044c', 'field_044d', 'field_0450', 'field_0458', 'field_0457', 'field_0452',
     'field_0460', 'field_0461', 'field_0462', 'field_0463', 'field_0464', 'field_0465',
     'field_0466', 'field_0467', 'field_0468', 'field_046c', 'field_046d', 'field_046f',
@@ -352,32 +352,11 @@ async function updateZoneFallback(homeId, zoneId, val) {
     await p.execute('UPDATE zones SET fallback_value=? WHERE id=? AND home_id=?', [val, zoneId, homeId]);
 }
 
-async function updateZoneConfig(homeId, zoneId, fields, fullConfigJson) {
+async function updateZoneConfig(homeId, zoneId, fields) {
     if (!homeId) throw new Error('homeId is required for updateZoneConfig');
     const p = getPool();
-    const [rows] = await p.execute('SELECT last_config_json FROM zones WHERE id=? AND home_id=?', [zoneId, homeId]);
-
-    let mergedConfig = rows.length > 0 ? safeJsonParse(rows[0].last_config_json) : {};
-    if (fullConfigJson) {
-        Object.assign(mergedConfig, fullConfigJson);
-    }
-
-    // Inverse Sync: Merge specific DB fields into the JSON template
-    if (fields.dazzle_enabled !== undefined) mergedConfig.dazzle_enabled = fields.dazzle_enabled;
-    if (fields.field_61e0 !== undefined) mergedConfig.field_61e0 = fields.field_61e0;
-
-    // Merge incoming hex fields
-    for (const [k, v] of Object.entries(fields)) {
-        if (k.startsWith('0x') && v !== undefined) {
-            mergedConfig[k] = v;
-        }
-    }
-
-    mergedConfig = cleanFriendlyConfig(mergedConfig);
-
-    const etag = generateEtag();
-    const sqlUpdates = ['last_config_json=?', 'config_etag=?'];
-    const params = [JSON.stringify(mergedConfig), etag];
+    const sqlUpdates = [];
+    const params = [];
 
     if (fields.dazzle_enabled !== undefined) {
         sqlUpdates.push('dazzle_enabled=?');
@@ -402,11 +381,16 @@ async function updateZoneConfig(homeId, zoneId, fields, fullConfigJson) {
             }
         }
         if (val !== undefined) {
-            mergedConfig[hexId] = val;
             sqlUpdates.push(`${keys[0]}=?`);
             params.push(val);
         }
     }
+
+    const etag = generateEtag();
+    sqlUpdates.push('config_etag=?');
+    params.push(etag);
+    sqlUpdates.push('config_etag_real=?');
+    params.push(null);
 
     params.push(zoneId);
     params.push(homeId);
@@ -415,6 +399,11 @@ async function updateZoneConfig(homeId, zoneId, fields, fullConfigJson) {
         `UPDATE zones SET ${sqlUpdates.join(', ')} WHERE id=? AND home_id=?`,
         params
     );
+
+    const dbUtils = require('../db-utils');
+    if (typeof dbUtils.syncZoneConfig === 'function') {
+        await dbUtils.syncZoneConfig(homeId, zoneId);
+    }
 }
 
 async function mergeZoneMeasurement(homeId, zoneId, updates) {
@@ -433,18 +422,13 @@ async function updateLastConfigJsonFromLive(serial, decodedFields, etag) {
     const dbDev = await getDeviceByFullSerial(serial);
     if (!dbDev) return;
 
-    let mergedConfig = safeJsonParse(dbDev.last_config_json);
-    Object.assign(mergedConfig, decodedFields);
-    const { sortConfigFields } = require('../db-utils');
-    mergedConfig = sortConfigFields(cleanFriendlyConfig(mergedConfig));
-
     const tempOffset = decodedFields['0x0140'] ?? decodedFields.field_0140;
     const rawOrient = decodedFields['0x0149'] ?? decodedFields.config_field_0149 ?? decodedFields.va_orientation ?? decodedFields.field_0149;
     const uiFlags = decodedFields['0x0158'] ?? decodedFields.device_ui_flags_0158 ?? decodedFields.field_0158;
     const config15a = decodedFields['0x015a'] ?? decodedFields.actuator_config ?? decodedFields.field_015a;
 
-    const updates = ['last_config_json=?'];
-    const params = [JSON.stringify(mergedConfig)];
+    const updates = [];
+    const params = [];
 
     if (tempOffset !== undefined && tempOffset !== null) {
         updates.push('field_0140=?');
@@ -467,9 +451,11 @@ async function updateLastConfigJsonFromLive(serial, decodedFields, etag) {
         params.push(typeof etag === 'string' ? Buffer.from(etag, 'hex') : etag);
     }
 
-    params.push(serial);
-    assertAllowedColumns(updates, ALLOWED_ZONE_DEVICE_CONFIG_COLS);
-    await p.execute(`UPDATE devices SET ${updates.join(', ')} WHERE serial_no = ?`, params);
+    if (updates.length > 0) {
+        params.push(serial);
+        assertAllowedColumns(updates, ALLOWED_ZONE_DEVICE_CONFIG_COLS);
+        await p.execute(`UPDATE devices SET ${updates.join(', ')} WHERE serial_no = ?`, params);
+    }
 }
 
 async function hasValidConfigForResource(uriPath, homeId = null) {
@@ -479,11 +465,11 @@ async function hasValidConfigForResource(uriPath, homeId = null) {
         const pathHomeId = match[1] ? parseInt(match[1], 10) : homeId;
         const zoneId = parseInt(match[2], 10);
         if (pathHomeId !== null) {
-            const [rows] = await p.execute('SELECT last_config_json FROM zones WHERE id = ? AND home_id = ? LIMIT 1', [zoneId, pathHomeId]);
-            return rows.length > 0 && !!rows[0].last_config_json;
+            const [rows] = await p.execute('SELECT id FROM zones WHERE id = ? AND home_id = ? LIMIT 1', [zoneId, pathHomeId]);
+            return rows.length > 0;
         }
-        const [rows] = await p.execute('SELECT last_config_json FROM zones WHERE id = ? LIMIT 1', [zoneId]);
-        return rows.length > 0 && !!rows[0].last_config_json;
+        const [rows] = await p.execute('SELECT id FROM zones WHERE id = ? LIMIT 1', [zoneId]);
+        return rows.length > 0;
     }
     match = uriPath.match(/(?:h\/(\d+)\/)?c\/(\d+)\/config/);
     if (match) {
@@ -491,11 +477,11 @@ async function hasValidConfigForResource(uriPath, homeId = null) {
         const circuitNo = parseInt(match[2], 10);
         let rows;
         if (pathHomeId !== null) {
-            [rows] = await p.execute('SELECT last_config_json FROM heating_circuits WHERE home_id = ? AND number = ? LIMIT 1', [pathHomeId, circuitNo]);
+            [rows] = await p.execute('SELECT id FROM heating_circuits WHERE home_id = ? AND number = ? LIMIT 1', [pathHomeId, circuitNo]);
         } else {
-            [rows] = await p.execute('SELECT last_config_json FROM heating_circuits WHERE number = ? LIMIT 1', [circuitNo]);
+            [rows] = await p.execute('SELECT id FROM heating_circuits WHERE number = ? LIMIT 1', [circuitNo]);
         }
-        return rows.length > 0 && !!rows[0].last_config_json;
+        return rows.length > 0;
     }
     return false;
 }
@@ -715,32 +701,21 @@ async function insertCircuitMeasurement(homeId, circuitNumber, circuitFields = {
     _log('debug', `circuit_measurements: home=${homeId} circuit=${circuitNumber} target=${targetTemp}°C ref=${refTemp}°C demand=${demand}% flow=${chFlowTemp}°C`);
 }
 
-async function updateCircuitConfig(homeId, circuitNumber, fields, fullConfigJson) {
+async function updateCircuitConfig(homeId, circuitNumber, fields) {
     const p = getPool();
-    const [rows] = await p.execute('SELECT last_config_json FROM heating_circuits WHERE home_id=? AND number=?', [homeId, circuitNumber]);
-
-    let mergedConfig = rows.length > 0 ? safeJsonParse(rows[0].last_config_json) : {};
-    if (fullConfigJson) {
-        Object.assign(mergedConfig, fullConfigJson);
-    }
-
     const val = fields['0x2040'] ?? fields.circuit_max_flow_temperature ?? fields.max_temp;
-    if (val !== undefined) {
-        mergedConfig['0x2040'] = val;
-    }
-
-    mergedConfig = cleanFriendlyConfig(mergedConfig);
-
     const etag = generateEtag();
+    const [rows] = await p.execute('SELECT id FROM heating_circuits WHERE home_id=? AND number=?', [homeId, circuitNumber]);
+
     if (rows.length > 0) {
         await p.execute(
-            'UPDATE heating_circuits SET last_config_json=?, config_etag=?, field_2040=? WHERE home_id=? AND number=?',
-            [JSON.stringify(mergedConfig), etag, val !== undefined ? val : null, homeId, circuitNumber]
+            'UPDATE heating_circuits SET config_etag=?, config_etag_real=NULL, field_2040=? WHERE home_id=? AND number=?',
+            [etag, val !== undefined ? val : null, homeId, circuitNumber]
         );
     } else {
         await p.execute(
-            'INSERT INTO heating_circuits (home_id, number, last_config_json, config_etag, field_2040) VALUES (?, ?, ?, ?, ?)',
-            [homeId, circuitNumber, JSON.stringify(mergedConfig), etag, val !== undefined ? val : null]
+            'INSERT INTO heating_circuits (home_id, number, config_etag, field_2040) VALUES (?, ?, ?, ?)',
+            [homeId, circuitNumber, etag, val !== undefined ? val : null]
         );
     }
 }
@@ -748,37 +723,11 @@ async function updateCircuitConfig(homeId, circuitNumber, fields, fullConfigJson
 async function upsertHeatingSystem(homeId, fields, fullConfigJson = null) {
     // Sanitize 65535 (0xFFFF) sentinel values
     fields = sanitizeHvacFields(fields);
-    if (fullConfigJson) {
-        fullConfigJson = sanitizeHvacFields(fullConfigJson);
-    }
 
     const p = getPool();
     const now = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, '');
 
-    const [hsRows] = await p.execute('SELECT last_config_json FROM heating_systems WHERE home_id=?', [homeId]);
-    let mergedConfig = hsRows.length > 0 ? safeJsonParse(hsRows[0].last_config_json) : {};
-
-    // Map friendly keys in fullConfigJson to hex
-    if (fullConfigJson) {
-        for (const [k, v] of Object.entries(fullConfigJson)) {
-            const hexKey = k.startsWith('0x') ? k : tlvNameToHex(k);
-            if (hexKey) {
-                mergedConfig[hexKey] = v;
-            } else {
-                mergedConfig[k] = v;
-            }
-        }
-    }
-
-    // Merge incoming fields
-    for (const [fKey, fVal] of Object.entries(fields)) {
-        if (fVal !== undefined) {
-            const hexKey = fKey.startsWith('0x') ? fKey : tlvNameToHex(fKey);
-            if (hexKey) {
-                mergedConfig[hexKey] = fVal;
-            }
-        }
-    }
+    const [hsRows] = await p.execute('SELECT id FROM heating_systems WHERE home_id=?', [homeId]);
 
     const mapping = {
         '0x044c': 'field_044c',
@@ -804,12 +753,11 @@ async function upsertHeatingSystem(homeId, fields, fullConfigJson = null) {
     };
 
     const etag = generateEtag();
-    const jsonStr = JSON.stringify(mergedConfig);
 
     if (hsRows.length === 0) {
-        const cols = ['home_id', 'hvac_updated_at', 'last_config_json', 'hvac_etag'];
-        const vals = [homeId, now, jsonStr, etag];
-        const placeholders = ['?', '?', '?', '?'];
+        const cols = ['home_id', 'hvac_updated_at', 'hvac_etag'];
+        const vals = [homeId, now, etag];
+        const placeholders = ['?', '?', '?'];
 
         for (const [tlv, col] of Object.entries(mapping)) {
             if (fields[tlv] !== undefined) {
@@ -831,8 +779,8 @@ async function upsertHeatingSystem(homeId, fields, fullConfigJson = null) {
         assertAllowedColumns(cols, ALLOWED_HEATING_SYSTEM_COLS);
         await p.execute(`INSERT INTO heating_systems (${cols.join(',')}) VALUES (${placeholders.join(',')})`, vals);
     } else {
-        const updates = ['hvac_updated_at=?', 'last_config_json=?', 'hvac_etag=?'];
-        const params = [now, jsonStr, etag];
+        const updates = ['hvac_updated_at=?', 'hvac_etag=?'];
+        const params = [now, etag];
         for (const [tlv, col] of Object.entries(mapping)) {
             if (fields[tlv] !== undefined) {
                 let val = fields[tlv];

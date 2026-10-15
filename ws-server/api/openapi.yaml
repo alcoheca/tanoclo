@@ -3667,11 +3667,6 @@ paths:
                     type: string
                   is_modulating:
                     type: boolean
-                  last_config_json:
-                    oneOf:
-                      - type: string
-                      - type: object
-                    nullable: true
                   last_config_decoded:
                     type: object
                     nullable: true
@@ -3770,11 +3765,6 @@ paths:
                         type: integer
                       current_fw_version:
                         type: string
-                      last_config_json:
-                        oneOf:
-                          - type: string
-                          - type: object
-                        nullable: true
                       last_config_decoded:
                         type: object
                         nullable: true
@@ -3830,11 +3820,6 @@ paths:
                         type: string
                       type:
                         type: string
-                      last_config_json:
-                        oneOf:
-                          - type: string
-                          - type: object
-                        nullable: true
                       last_config_decoded:
                         type: object
                         nullable: true
@@ -4058,9 +4043,6 @@ paths:
                     type: string
                   home_id:
                     type: integer
-                  last_config_json:
-                    type: string
-                    nullable: true
                   last_config_decoded:
                     type: object
                     nullable: true

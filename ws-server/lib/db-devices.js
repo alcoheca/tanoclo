@@ -23,9 +23,9 @@ const ALLOWED_DEVICE_FW_COLS = new Set([
 const ALLOWED_DEVICE_SEN_COLS = new Set(['field_003b', 'field_0180', 'field_014c', 'field_0036', 'field_003c']);
 const ALLOWED_DEVICE_MOUNT_COLS = new Set(['field_016a', 'field_01fa', 'field_01fb', 'field_01b5', 'field_01b6']);
 const ALLOWED_DEVICE_CONFIG_COLS = new Set([
-    'last_config_json', 'field_0143', 'field_0140', 'field_015d', 'field_015c', 'field_02b3', 'field_021a',
+    'field_0143', 'field_0140', 'field_015d', 'field_015c', 'field_02b3', 'field_021a',
     'field_0149', 'field_015e', 'field_0158', 'field_015a', 'field_019e', 'field_019d',
-    'field_02b2', 'valve_sensitivity', 'config_etag'
+    'field_02b2', 'valve_sensitivity', 'config_etag', 'config_etag_real'
 ]);
 const ALLOWED_DEVICE_REAL_ETAG_COLS = new Set(['lock_etag_real', 'config_etag_real', 'sen_etag_real', 'act_etag_real']);
 
@@ -250,30 +250,8 @@ async function updateDeviceConfig(serial, fields, fullConfigJson) {
     const dbDev = await getDeviceByFullSerial(serial);
     if (!dbDev) return;
 
-    let mergedConfig = cleanFriendlyConfig(safeJsonParse(dbDev.last_config_json));
-
-    // Convert fullConfigJson to hex keys if any exist
-    if (fullConfigJson) {
-        for (const [k, v] of Object.entries(fullConfigJson)) {
-            const hexKey = k.startsWith('0x') ? k : tlvNameToHex(k);
-            if (hexKey) {
-                mergedConfig[hexKey] = v;
-            }
-        }
-    }
-
-    // Merge incoming fields
-    for (const [k, v] of Object.entries(fields)) {
-        if (k.startsWith('0x') && v !== undefined) {
-            mergedConfig[k] = v;
-        }
-    }
-
-    const { sortConfigFields } = require('./db-utils');
-    mergedConfig = sortConfigFields(cleanFriendlyConfig(mergedConfig));
-
-    const updates = ['last_config_json=?'];
-    const params = [JSON.stringify(mergedConfig)];
+    const updates = [];
+    const params = [];
 
     if (fields['0x0140'] !== undefined) { updates.push('field_0140=?'); params.push(fields['0x0140']); }
     if (fields['0x0149'] !== undefined) {
@@ -290,10 +268,12 @@ async function updateDeviceConfig(serial, fields, fullConfigJson) {
     if (fields['0x019d'] !== undefined) { updates.push('field_019d=?'); params.push(fields['0x019d']); }
     if (fields['0x02b2'] !== undefined) { updates.push('field_02b2=?'); params.push(fields['0x02b2']); }
 
-    // Always generate a new ETag when config changes
+    // Always generate a new ETag when config changes and invalidate real ETag
     const etag = generateEtag();
     updates.push('config_etag=?');
     params.push(etag);
+    updates.push('config_etag_real=?');
+    params.push(null);
 
     params.push(serial);
     assertAllowedColumns(updates, ALLOWED_DEVICE_CONFIG_COLS);

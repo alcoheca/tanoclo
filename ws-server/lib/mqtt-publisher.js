@@ -265,12 +265,6 @@ async function publishFullState() {
         // 5. Fetch heating systems (boilers)
         const [heatingSystems] = await pool.execute('SELECT * FROM heating_systems');
         for (const hs of heatingSystems) {
-            let lastConfig = {};
-            try {
-                lastConfig = JSON.parse(hs.last_config_json || '{}');
-            } catch (e) {
-                if (log) log('error', `[mqtt-publisher] Failed to parse last_config_json for home ${hs.home_id}: ${e.message}`);
-            }
             const fields = {
                 '0x044c': hs.field_044c,
                 '0x044d': hs.field_044d,
@@ -286,11 +280,7 @@ async function publishFullState() {
                 '0x0465': hs.field_0465,
                 '0x0467': hs.field_0467,
                 '0x0468': hs.field_0468,
-                '0x0452': hs.field_0452,
-                // Retrieve the non-column fields from last_config_json:
-                '0x044e': lastConfig['0x044e'] !== undefined ? lastConfig['0x044e'] : lastConfig.ot_outside_temperature,
-                '0x044f': lastConfig['0x044f'] !== undefined ? lastConfig['0x044f'] : lastConfig.ot_exhaust_temperature,
-                '0x045a': lastConfig['0x045a'] !== undefined ? lastConfig['0x045a'] : lastConfig.ot_dhw_temperature
+                '0x0452': hs.field_0452
             };
             await publishHvacTelemetry(hs.home_id, fields);
         }

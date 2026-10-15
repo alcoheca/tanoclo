@@ -149,12 +149,7 @@ test('legacy test suite runs successfully', async () => {
               home_id: 999999,
               ipv6_address: serial.startsWith('IB') ? 'fd00::1' : 'fd00::2',
               zone_id: 1,
-              last_config_json: JSON.stringify({
-                  '0x0158': 0,
-                  '0x60e0': 0,
-                  '0x62c0': 0,
-                  '0x02b3': 0
-              }),
+              field_0158: 0,
               config_etag: Buffer.from('1e38286d77c0c25c', 'hex')
           }),
           getDeviceBySerial: async (serial) => ({
@@ -163,12 +158,7 @@ test('legacy test suite runs successfully', async () => {
               home_id: 999999,
               ipv6_address: serial.startsWith('IB') ? 'fd00::1' : 'fd00::2',
               zone_id: 1,
-              last_config_json: JSON.stringify({
-                  '0x0158': 0,
-                  '0x60e0': 0,
-                  '0x62c0': 0,
-                  '0x02b3': 0
-              }),
+              field_0158: 0,
               config_etag: Buffer.from('1e38286d77c0c25c', 'hex')
           }),
           getZoneBindingsForDevice: async () => [],

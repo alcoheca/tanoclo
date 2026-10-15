@@ -26,12 +26,12 @@ test('legacy test suite runs successfully', async () => {
               serial_no, device_type, home_id,
               current_fw_version, connection_state, in_pairing_mode,
               cap_inside_temp_measurement, cap_identify, cap_radio_encryption_key_access,
-              connection_state_timestamp, last_config_json
+              connection_state_timestamp
           ) VALUES (
               ?, 'VA', 999999,
               '1.0', 1, 0,
               1, 1, 0,
-              '2026-06-20T00:00:00Z', '{"temperature_offset": 0.0}'
+              '2026-06-20T00:00:00Z'
           )
       `, [testSerial]);
       

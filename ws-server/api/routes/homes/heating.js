@@ -26,13 +26,6 @@ router.get('/:homeId/heatingSystem', async (req, res) => {
         const [systems] = await pool.execute('SELECT * FROM heating_systems WHERE home_id = ?', [homeId]);
         const hs = systems[0] || {};
 
-        let parsedConfig = null;
-        if (hs.last_config_json) {
-            try {
-                parsedConfig = typeof hs.last_config_json === 'string' ? JSON.parse(hs.last_config_json) : hs.last_config_json;
-            } catch (e) {}
-        }
-
         res.json({
             boiler: {
                 present: Boolean(hs.boiler_present),
@@ -48,7 +41,7 @@ router.get('/:homeId/heatingSystem', async (req, res) => {
                 flameActive: Boolean(hs.field_0457),
                 waterPressureBar: hs.field_0460 !== null && hs.field_0460 !== undefined ? parseFloat(((Number(hs.field_0460) & 0xFFFF) / 1000).toFixed(2)) : null,
                 dhwTargetTemperature: hs.field_045b !== null && hs.field_045b !== undefined ? parseFloat(hs.field_045b) : null,
-                dhwFlowRateLpm: parsedConfig && parsedConfig['0x045e'] !== undefined ? parseFloat(parsedConfig['0x045e']) : null,
+                dhwFlowRateLpm: null,
                 burnerStarts: hs.field_0463 !== null && hs.field_0463 !== undefined && parseInt(hs.field_0463, 10) !== 65535 ? parseInt(hs.field_0463, 10) : null,
                 chPumpStarts: hs.field_0464 !== null && hs.field_0464 !== undefined && parseInt(hs.field_0464, 10) !== 65535 ? parseInt(hs.field_0464, 10) : null,
                 chBurnerStarts: hs.field_0465 !== null && hs.field_0465 !== undefined && parseInt(hs.field_0465, 10) !== 65535 ? parseInt(hs.field_0465, 10) : null,

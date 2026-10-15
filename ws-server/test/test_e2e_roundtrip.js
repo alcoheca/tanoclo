@@ -278,9 +278,9 @@ async function runTests() {
 
     try {
         const pool = db.getPool();
-        const [deviceRows] = await pool.execute('SELECT last_config_json, child_lock_enabled FROM devices WHERE serial_no = ?', [DEVICE_ID]);
+        const [deviceRows] = await pool.execute('SELECT child_lock_enabled FROM devices WHERE serial_no = ?', [DEVICE_ID]);
         if (deviceRows.length > 0) {
-            originalDeviceConfig = deviceRows[0].last_config_json;
+            // originalDeviceConfig removed
             originalChildLock = deviceRows[0].child_lock_enabled;
         }
     } catch (e) {
@@ -492,8 +492,8 @@ async function runTests() {
         console.log('\nRestoring original database state...');
         try {
             const pool = db.getPool();
-            if (originalDeviceConfig !== null) {
-                await pool.execute('UPDATE devices SET last_config_json = ?, child_lock_enabled = ? WHERE serial_no = ?', [originalDeviceConfig, originalChildLock, DEVICE_ID]);
+            if (originalChildLock !== null) {
+                await pool.execute('UPDATE devices SET child_lock_enabled = ? WHERE serial_no = ?', [originalChildLock, DEVICE_ID]);
             }
             // Also ensure any test overlays are deleted
             await pool.execute('DELETE FROM zone_overlays WHERE zone_id = ? AND home_id = ?', [ZONE_ID, HOME_ID]);

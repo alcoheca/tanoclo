@@ -79,10 +79,14 @@ async function getTlvLabels() {
     return { fields };
 }
 
-async function buildDeviceConfigTLV(deviceId) {
+async function buildDeviceConfigTLV(deviceId, existingDbDev = null) {
     const tlv = require('./tlv');
     _log('debug', `Building Config TLV for ${deviceId}...`);
-    const dbDev = await getDeviceByFullSerial(deviceId);
+    let dbDev = existingDbDev;
+    if (!dbDev) {
+        dbDev = await getDeviceByFullSerial(deviceId);
+        if (!dbDev) dbDev = await getDeviceBySerial(deviceId);
+    }
     if (!dbDev) {
         _log('warn', `Device ${deviceId} not found!`);
         return null;
@@ -96,30 +100,8 @@ async function buildDeviceConfigTLV(deviceId) {
     const [zoneRows] = await p.execute('SELECT dazzle_enabled, offline_schedule_enabled FROM zones WHERE id = ? AND home_id = ?', [zoneId, dbDev.home_id]);
     const dazzleEnabled = zoneRows.length > 0 ? zoneRows[0].dazzle_enabled : 1;
     const offlineScheduleEnabled = zoneRows.length > 0 ? zoneRows[0].offline_schedule_enabled : 0;
-    _log('debug', `Parsing base JSON from DB...`);
-    let fields = safeJsonParse(dbDev.last_config_json);
-
-    // Metadata cleanup to avoid duplicate FIDs and strip leaked cross-domain FIDs
-    // We remove named, numeric, zone, circuit, and hvac keys to ensure a clean slate
-    [
-        'home_id', 'zone_id', 'field_015e',
-        'device_config_flag_02b3', 'device_config_015a', 'device_config_015c',
-        '0x015c', '0x015e', '0x015a', '0x02b3', '0x0158',
-        'temperature_offset', '0x0140',
-        'display_brightness', '0x019e',
-        'display_contrast', '0x019d',
-        'display_active_timeout', '0x02b2',
-        'display_orientation', '0x0149',
-        'device_flag_0143', '0x0143',
-        '0x01a0', '0x003a', '0x003b', '0x0035', '0x0039', '0x0036', '0x003c', '0x0210', '0x0180', '0x014c',
-        // Strip circuit FIDs (belong only in circuit config)
-        '0x2040',
-        // Strip zone FIDs (belong only in zone config)
-        '0x6020', '0x63e0', '0x63a0', '0x8400', '0x8200', '0x8000',
-        '0x6380', '0x6060', '0x6040', '0x6080', '0x60a0', '0x60c0', '0x60e0', '0x62c0', '0x6340',
-        // Strip HVAC / unknown FIDs (belong only in hvac config)
-        '0x046c', '0x046d', '0x0471', '0x0481'
-    ].forEach(k => delete fields[k]);
+    _log('debug', `Building device config from DB columns...`);
+    let fields = {};
 
     // Use strictly hex keys
     fields['0x0140'] = parseFloat(dbDev.field_0140) || 0; // field_0140 (temperature offset)
@@ -129,8 +111,12 @@ async function buildDeviceConfigTLV(deviceId) {
         fields['0x019d'] = dbDev.field_019d !== null && dbDev.field_019d !== undefined ? dbDev.field_019d : 128; // display_contrast
         fields['0x02b2'] = dbDev.field_02b2 !== null && dbDev.field_02b2 !== undefined ? dbDev.field_02b2 : 0; // display_active_timeout
         fields['0x0149'] = unmapOrientation(dbDev.field_0149); // display_orientation
-    } else {
-        delete fields['0x021a'];
+    }
+    if (deviceId.startsWith('VA')) {
+        fields['0x021a'] = dbDev.field_021a !== null && dbDev.field_021a !== undefined ? Number(dbDev.field_021a) : 0;
+    }
+    if (dbDev.field_016a !== null && dbDev.field_016a !== undefined) {
+        fields['0x016a'] = Number(dbDev.field_016a);
     }
     fields['0x0158'] = dazzleEnabled ? 0x0200 : 0x0000; // field_0158
     fields['0x0143'] = false; // device_flag_0143 (child lock available)
@@ -153,8 +139,6 @@ async function buildDeviceConfigTLV(deviceId) {
         if (sensitivity >= 25 && sensitivity <= 250) {
             fields['0x4160'] = sensitivity;
         }
-    } else {
-        delete fields['0x4160'];
     }
 
     // Dynamic ETag Generation for Valve Actuators
@@ -304,12 +288,13 @@ async function buildZoneConfigFields(homeId, zoneId) {
     if (!homeId) throw new Error('homeId is required for buildZoneConfigFields');
     const p = getPool();
     const [rows] = await p.execute(
-        'SELECT last_config_json, dazzle_enabled, open_window_enabled, open_window_timeout, field_60a0, field_6080, field_6340, field_60c0, measuring_device_serial, heating_circuit FROM zones WHERE id = ? AND home_id = ?',
+        'SELECT type, dazzle_enabled, open_window_enabled, open_window_timeout, field_60a0, field_6080, field_6340, field_60c0, measuring_device_serial, heating_circuit FROM zones WHERE id = ? AND home_id = ?',
         [zoneId, homeId]
     );
     if (rows.length === 0) return null;
 
-    let fields = safeJsonParse(rows[0].last_config_json);
+    const row = rows[0];
+    let fields = {};
 
     // Query active devices in this zone with IPv6
     const [zoneDevs] = await p.execute(
@@ -319,7 +304,7 @@ async function buildZoneConfigFields(homeId, zoneId) {
 
     // Query heating circuit driver / zone controller (RU/WR/BU/EK)
     let circuitDriverIpv6 = null;
-    const circuitNum = rows[0].heating_circuit || 1;
+    const circuitNum = row.heating_circuit || 1;
     const [circRows] = await p.execute(
         'SELECT driver_serial_no FROM heating_circuits WHERE home_id = ? AND number = ? LIMIT 1',
         [homeId, circuitNum]
@@ -341,8 +326,38 @@ async function buildZoneConfigFields(homeId, zoneId) {
         if (zcDevs.length > 0) circuitDriverIpv6 = zcDevs[0].ipv6_address;
     }
 
+    if (row.type === 'HOT_WATER') {
+        fields['0x6020'] = 2;
+        fields['0x63e0'] = true;
+        const leaderSerial = row.measuring_device_serial;
+        const leaderDev = zoneDevs.find(d => d.serial_no === leaderSerial) || zoneDevs[0];
+        const targetIpv6 = leaderDev?.ipv6_address || circuitDriverIpv6;
+        if (targetIpv6) {
+            fields['0x63a0'] = `coap://[${targetIpv6}]/z/s`;
+            fields['0x8400'] = `coap://[${targetIpv6}]/z/p`;
+        }
+        fields['0x60a0'] = row.field_60a0 != null ? parseFloat(row.field_60a0) : 500;
+        fields['0x60c0'] = row.field_60c0 != null ? parseFloat(row.field_60c0) : 1500;
+        fields['0x6080'] = row.field_6080 != null ? parseFloat(row.field_6080) : 1000;
+        return cleanFriendlyConfig(fields);
+    }
+
+    // Standard HEATING zone
+    fields['0x6020'] = 1;
+    fields['0x63e0'] = true;
+    fields['0x6380'] = 15;
+
+    // Active timetable check for 0x6060
+    const [ttRows] = await p.execute(
+        'SELECT id FROM zone_timetables WHERE home_id = ? AND zone_id = ? AND is_active = 1 LIMIT 1',
+        [homeId, zoneId]
+    );
+    if (ttRows.length > 0) {
+        fields['0x6060'] = 1;
+    }
+
     if (zoneDevs.length > 0) {
-        const measuringSerial = rows[0].measuring_device_serial;
+        const measuringSerial = row.measuring_device_serial;
         const leaderDev = zoneDevs.find(d => d.serial_no === measuringSerial) || zoneDevs[0];
         const vaDevs = zoneDevs.filter(d => d.device_type && d.device_type.startsWith('VA'));
 
@@ -389,23 +404,31 @@ async function buildZoneConfigFields(homeId, zoneId) {
     }
 
     // DB Overrides
-    if (rows[0].open_window_enabled !== undefined) {
-        fields['0x60e0'] = rows[0].open_window_enabled ? 1 : 0;
+    if (row.open_window_enabled !== undefined && row.open_window_enabled !== null) {
+        fields['0x60e0'] = row.open_window_enabled ? 1 : 0;
     }
-    if (rows[0].open_window_timeout !== undefined) {
-        fields['0x62c0'] = rows[0].open_window_timeout / 60;
+    if (row.open_window_timeout !== undefined && row.open_window_timeout !== null) {
+        fields['0x62c0'] = row.open_window_timeout / 60;
     }
-    if (rows[0].field_60a0 !== null && rows[0].field_60a0 !== undefined) {
-        fields['0x60a0'] = parseFloat(rows[0].field_60a0);
+    if (row.field_60a0 !== null && row.field_60a0 !== undefined) {
+        fields['0x60a0'] = parseFloat(row.field_60a0);
+    } else {
+        fields['0x60a0'] = 5;
     }
-    if (rows[0].field_60c0 !== null && rows[0].field_60c0 !== undefined) {
-        fields['0x60c0'] = parseFloat(rows[0].field_60c0);
+    if (row.field_60c0 !== null && row.field_60c0 !== undefined) {
+        fields['0x60c0'] = parseFloat(row.field_60c0);
+    } else {
+        fields['0x60c0'] = 15;
     }
-    if (rows[0].field_6080 !== null && rows[0].field_6080 !== undefined) {
-        fields['0x6080'] = parseFloat(rows[0].field_6080);
+    if (row.field_6080 !== null && row.field_6080 !== undefined) {
+        fields['0x6080'] = parseFloat(row.field_6080);
+    } else {
+        fields['0x6080'] = 10;
     }
-    if (rows[0].field_6340 !== null && rows[0].field_6340 !== undefined) {
-        fields['0x6340'] = parseInt(rows[0].field_6340, 10);
+    if (row.field_6340 !== null && row.field_6340 !== undefined) {
+        fields['0x6340'] = parseInt(row.field_6340, 10);
+    } else {
+        fields['0x6340'] = 1;
     }
 
     return cleanFriendlyConfig(fields);
@@ -423,25 +446,48 @@ async function buildZoneConfigTLV(homeId, zoneId) {
 async function buildHvacConfigTLV(homeId) {
     const tlv = require('./tlv');
     const p = getPool();
-    const [rows] = await p.execute('SELECT last_config_json FROM heating_systems WHERE home_id = ?', [homeId]);
+    const [rows] = await p.execute('SELECT * FROM heating_systems WHERE home_id = ?', [homeId]);
     if (rows.length === 0) return null;
 
-    let fields = safeJsonParse(rows[0].last_config_json);
-    fields = cleanFriendlyConfig(fields);
+    const r = rows[0];
+    const fields = {};
+    const mapping = {
+        '0x044c': 'field_044c',
+        '0x044d': 'field_044d',
+        '0x0450': 'field_0450',
+        '0x0458': 'field_0458',
+        '0x0457': 'field_0457',
+        '0x0452': 'field_0452',
+        '0x0460': 'field_0460',
+        '0x015d': 'field_015d',
+        '0x0471': 'field_0471',
+        '0x046f': 'field_046f',
+        '0x046c': 'field_046c',
+        '0x046d': 'field_046d',
+        '0x045b': 'field_045b',
+        '0x0463': 'field_0463',
+        '0x0466': 'field_0466',
+        '0x0467': 'field_0467',
+        '0x0468': 'field_0468',
+        '0x0464': 'field_0464',
+        '0x0465': 'field_0465',
+        '0x0481': 'field_0481'
+    };
+    for (const [fid, col] of Object.entries(mapping)) {
+        if (r[col] !== null && r[col] !== undefined) {
+            fields[fid] = r[col];
+        }
+    }
 
-    return tlv.encodeFromFields(fields);
+    return tlv.encodeFromFields(cleanFriendlyConfig(fields));
 }
 
 async function buildCircuitConfigTLV(homeId, circuitNumber) {
     const tlv = require('./tlv');
     const p = getPool();
-    const [rows] = await p.execute('SELECT last_config_json, field_2040 FROM heating_circuits WHERE home_id = ? AND number = ? LIMIT 1', [homeId, circuitNumber]);
+    const [rows] = await p.execute('SELECT field_2040 FROM heating_circuits WHERE home_id = ? AND number = ? LIMIT 1', [homeId, circuitNumber]);
 
     let fields = {};
-    if (rows.length > 0 && rows[0].last_config_json) {
-        fields = safeJsonParse(rows[0].last_config_json);
-    }
-
     const field2040 = rows.length > 0 ? rows[0].field_2040 : null;
 
     // Always query flow_temperature_settings to allow user override from TaNoClo frontend
@@ -450,15 +496,29 @@ async function buildCircuitConfigTLV(homeId, circuitNumber) {
         fields['0x2040'] = parseFloat(settingsRows[0].max_flow_temperature);
     } else if (field2040 !== null && field2040 !== undefined) {
         fields['0x2040'] = parseFloat(field2040);
-    } else if (fields['0x2040'] === undefined) {
+    } else {
         fields['0x2040'] = 60.0;
     }
 
-    delete fields.circuit_max_flow_temperature;
-    delete fields.max_temp;
-
     fields = cleanFriendlyConfig(fields);
     return tlv.encodeFromFields(fields);
+}
+
+async function syncZoneConfig(homeId, zoneId) {
+    if (!homeId || !zoneId) return null;
+    const p = getPool();
+    const fields = await buildZoneConfigFields(homeId, zoneId);
+    if (!fields) return null;
+    const tlvBuf = await buildZoneConfigTLV(homeId, zoneId);
+    const crypto = require('crypto');
+    const newEtag = tlvBuf && tlvBuf.length > 0
+        ? crypto.createHash('md5').update(tlvBuf).digest().subarray(0, 8)
+        : crypto.randomBytes(8);
+    await p.execute(
+        'UPDATE zones SET config_etag = ?, config_etag_real = NULL WHERE id = ? AND home_id = ?',
+        [newEtag, zoneId, homeId]
+    );
+    return newEtag;
 }
 
 module.exports = {
@@ -470,6 +530,7 @@ module.exports = {
     buildDeviceActuatorTLV,
     buildZoneConfigFields,
     buildZoneConfigTLV,
+    syncZoneConfig,
     buildHvacConfigTLV,
     buildCircuitConfigTLV
 };

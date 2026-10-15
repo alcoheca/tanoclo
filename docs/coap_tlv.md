@@ -259,7 +259,7 @@ This dictionary consolidates all observed TLV fields, mapping their hex codes, t
 | `0x0136` | `ambient_light_level` | `u16be` | 1.0 | - | `/d/{id}/sen` | `device_measurements` | `field_0136` | Ambient light photodiode level (0-100). Used for display auto-dimming. Exposed in API `hardwareDiagnostics.ambientLightLevel` and UI. |
 | `0x0137` | `dial_encoder_steps` | `u8` | 1.0 | step | `/d/{id}/sen` | `device_measurements` | `field_0137` | Relative rotary dial encoder movement steps (127 = idle sentinel, resets to 0x7f after report). Exposed in MQTT `dial_encoder_steps`. |
 | `0x0140` | `temperature_offset` | `s16be` | 0.01 | °C | `/d/{id}/config` | `devices` | `field_0140` | Temperature offset in Celsius. |
-| `0x0143` | `device_flag_0143` | `bool` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->device_flag_0143` | Device setup flag. |
+| `0x0143` | `device_flag_0143` | `bool` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device setup flag. |
 | `0x0149` | `va_orientation` | `u8` | 1.0 | enum | `/d/{id}/config` | `devices` | `field_0149` | Valve layout: `0`=HORIZONTAL, `1`=VERTICAL. |
 | `0x014c` | `fw_active_slot` | `u8` | 1.0 | enum | `/d/{id}/fw/state` | `devices` | `field_014c` | Execution slot index: `0` or `1`. |
 | `0x0155` | `rf_key` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `field_0155` | Operational network AES-128 RF key. |
@@ -274,7 +274,7 @@ This dictionary consolidates all observed TLV fields, mapping their hex codes, t
 | `0x0165` | `opentherm_current` | `u16be` | 1.0 | mA | `/d/{id}/sen` | `tlv_labels` | - | OpenTherm loop supply current in milliamperes. |
 | `0x0168` | `ru_opentherm_selftest_supply_mv` | `u32be` | 1.0 | mV | `/d/{id}/selftest/result` | `tlv_labels` | - | RU selftest metrics of OpenTherm docked subsystem reference supply voltage. |
 | `0x016a` | `valve_calibration_state`| `u8` | 1.0 | enum | `/d/{id}/mount` | `devices` | `field_016a` | Calibration steps state index. |
-| `0x016e` | `mounting` | `bytes` | 1.0 | - | `/d/{id}/mount` | `devices` | `last_config_json->mounting` | Motor mounting status metrics. |
+| `0x016e` | `mounting` | `bytes` | 1.0 | - | `/d/{id}/mount` | `devices` | - | Motor mounting status metrics. |
 | `0x017d` | `alternative_orientation`| `u8` | 1.0 | enum | `/d/{id}/config` | `devices` | `-` | Alternative orientation code. |
 | `0x0180` | `fw_update_outcome` | `u8` | 1.0 | - | `/d/{id}/fw/state` | `devices` | `field_0180` | Firmware OTA installation outcome code (e.g. `0x04` = update successfully applied). |
 | `0x0182` | `fallback_active` | `bool` | 1.0 | - | `/d/{id}/config` | `devices` | `field_0182` | Active status for device fallback mode. |
@@ -322,96 +322,96 @@ This dictionary consolidates all observed TLV fields, mapping their hex codes, t
 | `0x0217` | `valve_position` | `u8` | 1.0 | % | `/d/{id}/sen` | `tlv_labels` | - | Actuator physical valve position percentage. |
 | `0x0218` | `valve_state` | `u8` | 1.0 | enum | `/d/{id}/sen` | `tlv_labels` | - | Actuator valve operation status state. |
 | `0x0219` | `valve_error` | `u8` | 1.0 | enum | `/d/{id}/sen` | `tlv_labels` | - | Actuator valve operation/calibration error. |
-| `0x021a` | `device_config_aux_021a` | `u16be` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->device_config_aux_021a` | Device configuration auxiliary parameter. |
-| `0x021b` | `config_field_021b` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_021b` | Device configuration raw byte field. |
-| `0x0221` | `config_field_0221` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0221` | Device configuration raw byte field. |
-| `0x0223` | `config_field_0223` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0223` | Device configuration raw byte field. |
-| `0x0224` | `config_field_0224` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0224` | Device configuration raw byte field. |
-| `0x0225` | `config_field_0225` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0225` | Device configuration raw byte field. |
-| `0x0226` | `config_field_0226` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0226` | Device configuration raw byte field. |
-| `0x0227` | `config_field_0227` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0227` | Device configuration raw byte field. |
-| `0x0228` | `config_field_0228` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0228` | Device configuration raw byte field. |
-| `0x0229` | `config_field_0229` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0229` | Device configuration raw byte field. |
-| `0x022a` | `config_field_022a` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_022a` | Device configuration raw byte field. |
-| `0x022b` | `config_field_022b` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_022b` | Device configuration raw byte field. |
-| `0x022c` | `fw_update_start` | `u8` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->fw_update_start` | Firmware update trigger control parameter. |
-| `0x022d` | `unknown_022d` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_022d` | Device hardware configuration metadata field. |
-| `0x022e` | `unknown_022e` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_022e` | Device hardware configuration metadata field. |
-| `0x022f` | `unknown_022f` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_022f` | Device hardware configuration metadata field. |
-| `0x0230` | `unknown_0230` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_0230` | Device hardware configuration metadata field. |
-| `0x0231` | `unknown_0231` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_0231` | Device hardware configuration metadata field. |
-| `0x0232` | `unknown_0232` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_0232` | Device hardware configuration metadata field. |
-| `0x0233` | `unknown_0233` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_0233` | Device hardware configuration metadata field. |
-| `0x0234` | `unknown_0234` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_0234` | Device hardware configuration metadata field. |
-| `0x0235` | `unknown_0235` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_0235` | Device hardware configuration metadata field. |
-| `0x0236` | `unknown_0236` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_0236` | Device hardware configuration metadata field. |
-| `0x0237` | `unknown_0237` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_0237` | Device hardware configuration metadata field. |
-| `0x0238` | `unknown_0238` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_0238` | Device hardware configuration metadata field. |
-| `0x0239` | `unknown_0239` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_0239` | Device hardware configuration metadata field. |
-| `0x023a` | `unknown_023a` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_023a` | Device hardware configuration metadata field. |
-| `0x023b` | `unknown_023b` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_023b` | Device hardware configuration metadata field. |
-| `0x023c` | `unknown_023c` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_023c` | Device hardware configuration metadata field. |
-| `0x023d` | `config_field_023d` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_023d` | Device configuration raw byte field. |
-| `0x023e` | `config_field_023e` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_023e` | Device configuration raw byte field. |
-| `0x023f` | `config_field_023f` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_023f` | Device configuration raw byte field. |
-| `0x0240` | `config_field_0240` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0240` | Device configuration raw byte field. |
-| `0x0241` | `config_field_0241` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0241` | Device configuration raw byte field. |
-| `0x0242` | `config_field_0242` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0242` | Device configuration raw byte field. |
-| `0x0243` | `config_field_0243` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0243` | Device configuration raw byte field. |
-| `0x0244` | `config_field_0244` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0244` | Device configuration raw byte field. |
-| `0x0245` | `unknown_0245` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->unknown_0245` | Device hardware configuration metadata field. |
-| `0x0246` | `config_field_0246` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0246` | Device configuration raw byte field. |
-| `0x0247` | `config_field_0247` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0247` | Device configuration raw byte field. |
-| `0x0248` | `config_field_0248` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0248` | Device configuration raw byte field. |
-| `0x0249` | `config_field_0249` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0249` | Device configuration raw byte field. |
-| `0x024a` | `config_field_024a` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_024a` | Device configuration raw byte field. |
-| `0x024b` | `config_field_024b` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_024b` | Device configuration raw byte field. |
-| `0x024c` | `config_field_024c` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_024c` | Device configuration raw byte field. |
-| `0x024d` | `config_field_024d` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_024d` | Device configuration raw byte field. |
-| `0x024e` | `config_field_024e` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_024e` | Device configuration raw byte field. |
-| `0x024f` | `config_field_024f` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_024f` | Device configuration raw byte field. |
-| `0x0250` | `config_field_0250` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0250` | Device configuration raw byte field. |
-| `0x0251` | `config_field_0251` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0251` | Device configuration raw byte field. |
-| `0x0252` | `config_field_0252` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0252` | Device configuration raw byte field. |
-| `0x0253` | `config_field_0253` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0253` | Device configuration raw byte field. |
+| `0x021a` | `device_config_aux_021a` | `u16be` | 1.0 | - | `/d/{id}/config` | `devices` | `field_021a` | Device configuration auxiliary parameter. |
+| `0x021b` | `config_field_021b` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0221` | `config_field_0221` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0223` | `config_field_0223` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0224` | `config_field_0224` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0225` | `config_field_0225` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0226` | `config_field_0226` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0227` | `config_field_0227` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0228` | `config_field_0228` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0229` | `config_field_0229` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x022a` | `config_field_022a` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x022b` | `config_field_022b` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x022c` | `fw_update_start` | `u8` | 1.0 | - | `/d/{id}/config` | `devices` | - | Firmware update trigger control parameter. |
+| `0x022d` | `unknown_022d` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x022e` | `unknown_022e` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x022f` | `unknown_022f` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x0230` | `unknown_0230` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x0231` | `unknown_0231` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x0232` | `unknown_0232` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x0233` | `unknown_0233` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x0234` | `unknown_0234` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x0235` | `unknown_0235` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x0236` | `unknown_0236` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x0237` | `unknown_0237` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x0238` | `unknown_0238` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x0239` | `unknown_0239` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x023a` | `unknown_023a` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x023b` | `unknown_023b` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x023c` | `unknown_023c` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x023d` | `config_field_023d` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x023e` | `config_field_023e` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x023f` | `config_field_023f` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0240` | `config_field_0240` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0241` | `config_field_0241` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0242` | `config_field_0242` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0243` | `config_field_0243` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0244` | `config_field_0244` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0245` | `unknown_0245` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device hardware configuration metadata field. |
+| `0x0246` | `config_field_0246` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0247` | `config_field_0247` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0248` | `config_field_0248` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0249` | `config_field_0249` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x024a` | `config_field_024a` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x024b` | `config_field_024b` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x024c` | `config_field_024c` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x024d` | `config_field_024d` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x024e` | `config_field_024e` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x024f` | `config_field_024f` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0250` | `config_field_0250` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0251` | `config_field_0251` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0252` | `config_field_0252` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0253` | `config_field_0253` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
 | `0x025e` | `session_token` | `bytes` | 1.0 | - | `/d/{id}/auth` | `devices` | `field_025e` | Active operational CoAP session token. |
-| `0x025f` | `token_validity_minutes`| `u16be` | 1.0 | min | `/d/{id}/auth` | `devices` | `last_config_json->token_validity_minutes` | Session token validity duration in minutes. |
+| `0x025f` | `token_validity_minutes`| `u16be` | 1.0 | min | `/d/{id}/auth` | `devices` | - | Session token validity duration in minutes. |
 | `0x0260` | `device_id` | `string` | 1.0 | - | `/d/{id}/auth` | `devices` | `serial_no` | Alphanumeric device hardware serial number. |
 | `0x0265` | `va_act_position_steps` | `u16be` | 1.0 | steps | `/d/{id}/act` | `devices` | `field_0265` | Motor piston extension distance steps. |
 | `0x0266` | `va_act_position2_steps_unused` | `u16be` | 1.0 | steps | `/d/{id}/act` | `devices` | `field_0266` | Unused / historical placeholder. VA uses 0x0294. |
-| `0x0270` | `config_field_0270` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0270` | Device configuration raw byte field. |
+| `0x0270` | `config_field_0270` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
 | `0x0273` | `va_act_limit_low_steps`| `u16be` | 1.0 | steps | `/d/{id}/act` | `devices` | `field_0273` | Piston closed/zero-level threshold steps. |
-| `0x0275` | `config_field_0275` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0275` | Device configuration raw byte field. |
-| `0x0276` | `config_field_0276` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0276` | Device configuration raw byte field. |
+| `0x0275` | `config_field_0275` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
+| `0x0276` | `config_field_0276` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration raw byte field. |
 | `0x027a` | `dial_interaction_result`| `u8` | 1.0 | enum | `/d/{id}/sen` | `device_measurements` | `field_027a` | Dial interaction status code (0 = success/idle, 3 = manual temperature override committed on VA). Exposed in API `hardwareDiagnostics.dialInteractionResult` and MQTT `dial_interaction_result`. |
 | `0x027c` | `va_act_limit_high_steps`| `u16be` | 1.0 | steps | `/d/{id}/act` | `devices` | `field_027c` | Piston fully retracted span limit steps. |
 | `0x0280` | `va_act_drive_cal_const`| `u16be` | 1.0 | - | `/d/{id}/act` | `devices` | `field_0280` | Valve actuator mechanical drive constant. |
 | `0x0283` | `va_act_status_flags_unused` | `s16be` | 1.0 | bits | `/d/{id}/act` | `devices` | `field_0283` | Unused / historical placeholder. VA uses 0x028d. |
-| `0x0286` | `config_field_0286` | `u16be` | 1.0 | raw | `/d/{id}/config` | `devices` | `last_config_json->config_field_0286` | Device configuration field. |
+| `0x0286` | `config_field_0286` | `u16be` | 1.0 | raw | `/d/{id}/config` | `devices` | - | Device configuration field. |
 | `0x028c` | `va_actuator_active` | `bool` | 1.0 | - | `/d/{id}/act` | `devices` | `field_028c` | Actuator calibration/activity status. |
 | `0x028d` | `va_act_status_flags_s16` | `s16be` | 1.0 | bits | `/d/{id}/act` | `devices` | `field_0283` | Motor movement error and block bitmask. |
 | `0x0290` | `va_child_lock_enabled` | `bool` | 1.0 | - | `/d/{id}/lock` | `devices` | `child_lock_enabled` | Lock touch dial physical control interface. |
-| `0x0291` | `config_field_0291` | `u8` | 1.0 | raw | `/d/{id}/config` | `devices` | `last_config_json->config_field_0291` | Device configuration field. |
-| `0x0292` | `config_field_0292` | `u8` | 1.0 | raw | `/d/{id}/config` | `devices` | `last_config_json->config_field_0292` | Device configuration field. |
-| `0x0293` | `config_field_0293` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->config_field_0293` | Device configuration field. |
+| `0x0291` | `config_field_0291` | `u8` | 1.0 | raw | `/d/{id}/config` | `devices` | - | Device configuration field. |
+| `0x0292` | `config_field_0292` | `u8` | 1.0 | raw | `/d/{id}/config` | `devices` | - | Device configuration field. |
+| `0x0293` | `config_field_0293` | `bytes` | 1.0 | - | `/d/{id}/config` | `devices` | - | Device configuration field. |
 | `0x0294` | `va_act_position2_steps`| `u16be` | 1.0 | steps | `/d/{id}/act` | `devices` | `field_0266` | Secondary piston movement steps. |
 | `0x0298` | `zone_presence` | `u8` | 1.0 | - | `/z/p` | `tlv_labels` | - | Zone node online/presence registration flag. |
 | `0x02b2` | `display_active_timeout`| `u16be` | 1.0 | min | `/d/{id}/config` | `devices` | `field_02b2` | Timeout duration for display activity / temporary override in minutes. |
-| `0x02b3` | `device_config_flag_02b3`| `bool` | 1.0 | - | `/d/{id}/config` | `devices` | `last_config_json->device_config_flag_02b3`| Offline fallback config schedule toggle. |
+| `0x02b3` | `device_config_flag_02b3`| `bool` | 1.0 | - | `/d/{id}/config` | `devices` | -| Offline fallback config schedule toggle. |
 | `0x0312` | `fw_manifest_blob` | `bytes` | 1.0 | blob | `/d/{id}/fw` | `tlv_labels` | - | Firmware upgrade manifest metadata. |
 | `0x044c` | `ot_ch_flow_temperature` | `s16be` | 0.01 | °C | `/h/{id}/hvac/mon` | `heating_systems` | `field_044c` | OpenTherm radiator supply temperature. |
 | `0x044d` | `ot_ch_return_temperature`| `s16be` | 0.01 | °C | `/h/{id}/hvac/mon` | `heating_systems` | `field_044d` | OpenTherm radiator return temperature. |
-| `0x044e` | `ot_exhaust_temperature`  | `s16be` | 0.01 | °C | `/h/{id}/hvac/mon` | `heating_systems` | `last_config_json->0x044e` | OpenTherm flue exhaust gas temperature reading (Data-ID 33). |
-| `0x044f` | `ot_outside_temperature`  | `s16be` | 0.01 | °C | `/h/{id}/hvac/mon` | `heating_systems` | `last_config_json->0x044f` | OpenTherm outside sensor temperature reading (Data-ID 27). |
+| `0x044e` | `ot_exhaust_temperature`  | `s16be` | 0.01 | °C | `/h/{id}/hvac/mon` | `heating_systems` | - | OpenTherm flue exhaust gas temperature reading (Data-ID 33). |
+| `0x044f` | `ot_outside_temperature`  | `s16be` | 0.01 | °C | `/h/{id}/hvac/mon` | `heating_systems` | - | OpenTherm outside sensor temperature reading (Data-ID 27). |
 | `0x0450` | `ot_ch_control_setpoint` | `s16be` | 0.01 | °C | `/h/{id}/hvac/mon` | `heating_systems` | `field_0450` | OpenTherm boiler water flow target temp. |
 | `0x0452` | `ot_relative_modulation_level` | `u16be` | 1.0 | % | `/h/{id}/hvac/mon` | `heating_systems` | `field_0452` | Active burner combustion load percentage. |
 | `0x0457` | `boiler_active` | `bool` | 1.0 | - | `/h/{id}/hvac/mon` | `heating_systems` | `field_0457` | Burner flame presence status. |
 | `0x0458` | `hvac_status_fault_flags`| `u16be` | 1.0 | bits | `/h/{id}/hvac/mon` | `heating_systems` | `field_0458` | HVAC protocol system failure bitfield. |
-| `0x045a` | `ot_dhw_temperature`      | `s16be` | 0.01 | °C | `/h/{id}/hvac/mon` | `heating_systems` | `last_config_json->0x045a` | OpenTherm domestic hot water measured temperature. |
+| `0x045a` | `ot_dhw_temperature`      | `s16be` | 0.01 | °C | `/h/{id}/hvac/mon` | `heating_systems` | - | OpenTherm domestic hot water measured temperature. |
 | `0x045b` | `dhw_target_temperature` | `s16be` | 0.01 | °C | `/h/{id}/hvac/mon/dhw`| `heating_systems` | `field_045b` | Target temperature for Domestic Hot Water. |
-| `0x045e` | `ot_dhw_flow_rate`       | `u16be` | 0.1  | L/min | `/h/{id}/hvac/mon` | `heating_systems` | `last_config_json->0x045e` | OpenTherm ID 19 domestic hot water flow rate in litres per minute. |
+| `0x045e` | `ot_dhw_flow_rate`       | `u16be` | 0.1  | L/min | `/h/{id}/hvac/mon` | `heating_systems` | - | OpenTherm ID 19 domestic hot water flow rate in litres per minute. |
 | `0x0460` | `hvac_water_pressure_mbar`| `u32be` | 1.0 | mbar | `/h/{id}/hvac/codes` | `heating_systems` | `field_0460` | Boiler system water circuit pressure. |
-| `0x0462` | `ot_ch_water_pressure_bar`| `s16be` | 0.1  | bar | `/h/{id}/hvac/mon` | `heating_systems` | `last_config_json->0x0462` | OpenTherm ID 18 central heating system water pressure in bar. |
+| `0x0462` | `ot_ch_water_pressure_bar`| `s16be` | 0.1  | bar | `/h/{id}/hvac/mon` | `heating_systems` | - | OpenTherm ID 18 central heating system water pressure in bar. |
 | `0x0463` | `ot_burner_start_count` | `u32be` | 1.0 | cyc | `/h/{id}/hvac/maint` | `heating_systems` | `field_0463` | Total cycles of burner combustion ignition. |
 | `0x0464` | `ot_ch_pump_start_count` | `u32be` | 1.0 | cyc | `/h/{id}/hvac/maint` | `heating_systems` | `field_0464` | Total execution cycles of central heating pump. |
 | `0x0465` | `ot_ch_burner_start_count`| `u32be` | 1.0 | cyc | `/h/{id}/hvac/maint` | `heating_systems` | `field_0465` | Derived central heating burner start counter (total - DHW). |

@@ -255,8 +255,16 @@ router.post('/:homeId/zones', async (req, res) => {
                 const [counts] = await pool.execute('SELECT COUNT(*) as c FROM devices WHERE zone_id = ? AND home_id = ?', [oldZoneId, homeId]);
                 if (counts[0].c === 0) {
                     await db.purgeZone(homeId, oldZoneId);
+                } else {
+                    const dbUtils = require('../../../lib/db-utils');
+                    await dbUtils.syncZoneConfig(homeId, oldZoneId).catch(() => {});
                 }
             }
+
+            const dbUtils = require('../../../lib/db-utils');
+            await dbUtils.syncZoneConfig(homeId, newZoneId).catch(err => {
+                _log('warn', `Failed to sync zone config for new zone ${newZoneId}: ${err.message}`);
+            });
 
             if (!devBypass) {
                 const commandApi = require('../../../lib/command-api');
@@ -659,8 +667,16 @@ async function assignDeviceToZone(req, res, homeId, zoneId, serialNo) {
             const [counts] = await pool.execute('SELECT COUNT(*) as c FROM devices WHERE zone_id = ? AND home_id = ?', [oldZoneId, homeId]);
             if (counts[0].c === 0) {
                 await db.purgeZone(homeId, oldZoneId);
+            } else {
+                const dbUtils = require('../../../lib/db-utils');
+                await dbUtils.syncZoneConfig(homeId, oldZoneId).catch(() => {});
             }
         }
+
+        const dbUtils = require('../../../lib/db-utils');
+        await dbUtils.syncZoneConfig(homeId, zoneId).catch(err => {
+            _log('warn', `Failed to sync zone config for zone ${zoneId}: ${err.message}`);
+        });
 
         if (!devBypass) {
             const commandApi = require('../../../lib/command-api');

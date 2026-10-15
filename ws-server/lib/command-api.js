@@ -542,17 +542,12 @@ async function handleCircuitConfig(req, res, homeId, circuitId) {
     if (!body || body.max_temp === undefined) return jsonResponse(res, 400, { error: 'max_temp is required' });
 
     try {
-        const [rows] = await _db.getPool().execute('SELECT last_config_json FROM heating_circuits WHERE home_id=? AND number=?', [homeId, circuitId]);
-        let currentConfig = rows.length > 0 ? (typeof rows[0].last_config_json === 'object' && rows[0].last_config_json !== null ? rows[0].last_config_json : JSON.parse(rows[0].last_config_json || '{}')) : {};
-
-        module.exports.updateFieldInMap(currentConfig, 'circuit_max_flow_temperature', body.max_temp);
-
-        const payload = tlv.encodeFromFields(currentConfig);
+        const payload = await _db.buildCircuitConfigTLV(homeId, circuitId);
         const etag = _db.generateEtag(payload).toString('hex');
 
         await _db.getPool().execute(
-            'UPDATE heating_circuits SET last_config_json=?, config_etag=? WHERE home_id=? AND number=?',
-            [JSON.stringify(currentConfig), Buffer.from(etag, 'hex'), homeId, circuitId]
+            'UPDATE heating_circuits SET field_2040=?, config_etag=?, config_etag_real=NULL WHERE home_id=? AND number=?',
+            [body.max_temp, Buffer.from(etag, 'hex'), homeId, circuitId]
         );
 
         _log('info', `[cmd-api] Circuit config updated for H:${homeId} C:${circuitId}, new ETag=${etag}. Devices will pick up on next poll.`);
@@ -576,20 +571,9 @@ async function handleZoneConfig(req, res, homeId, zoneId) {
     if (!body || !body.changes) return jsonResponse(res, 400, { error: 'changes required' });
 
     try {
-        const [rows] = await _db.getPool().execute('SELECT last_config_json FROM zones WHERE id=? AND home_id=?', [zoneId, homeId]);
-        let currentConfig = rows.length > 0 ? (typeof rows[0].last_config_json === 'object' && rows[0].last_config_json !== null ? rows[0].last_config_json : JSON.parse(rows[0].last_config_json || '{}')) : {};
-
-        const updatedConfig = { ...currentConfig };
-        for (const [k, v] of Object.entries(body.changes)) {
-            module.exports.updateFieldInMap(updatedConfig, k, v);
-        }
-        const payload = tlv.encodeFromFields(updatedConfig);
-        const etag = _db.generateEtag(payload).toString('hex');
-
-        await _db.getPool().execute(
-            'UPDATE zones SET last_config_json=?, config_etag=? WHERE id=? AND home_id=?',
-            [JSON.stringify(updatedConfig), Buffer.from(etag, 'hex'), zoneId, homeId]
-        );
+        await _db.updateZoneConfig(homeId, zoneId, body.changes);
+        const etagBuf = await _db.syncZoneConfig(homeId, zoneId);
+        const etag = etagBuf ? etagBuf.toString('hex') : null;
 
         _log('info', `[cmd-api] Zone config updated for zone ${zoneId}, new ETag=${etag}. Devices will pick up on next poll.`);
         jsonResponse(res, 200, { ok: true, etag });

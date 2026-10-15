@@ -206,12 +206,12 @@ async function runTests() {
 
     try {
         const pool = db.getPool();
-        const [deviceRows] = await pool.execute('SELECT last_config_json, child_lock_enabled FROM devices WHERE serial_no = ?', [DEVICE_ID]);
+        const [deviceRows] = await pool.execute('SELECT child_lock_enabled FROM devices WHERE serial_no = ?', [DEVICE_ID]);
         if (deviceRows.length > 0) {
-            originalDeviceConfig = deviceRows[0].last_config_json;
+            // originalDeviceConfig removed
             originalChildLock = deviceRows[0].child_lock_enabled;
         }
-        const [circuitRows] = await pool.execute('SELECT last_config_json, config_etag, field_2040, config_etag_real FROM heating_circuits WHERE home_id = ? AND number = 1', [HOME_ID]);
+        const [circuitRows] = await pool.execute('SELECT config_etag, field_2040, config_etag_real FROM heating_circuits WHERE home_id = ? AND number = 1', [HOME_ID]);
         if (circuitRows.length > 0) {
             originalCircuitConfig = circuitRows[0];
         }
@@ -709,14 +709,13 @@ async function runTests() {
         console.log('\nRestoring original database state...');
         try {
             const pool = db.getPool();
-            if (originalDeviceConfig !== null) {
-                await pool.execute('UPDATE devices SET last_config_json = ?, child_lock_enabled = ? WHERE serial_no = ?', [originalDeviceConfig, originalChildLock, DEVICE_ID]);
+            if (originalChildLock !== null) {
+                await pool.execute('UPDATE devices SET child_lock_enabled = ? WHERE serial_no = ?', [originalChildLock, DEVICE_ID]);
             }
             if (originalCircuitConfig !== null) {
                 await pool.execute(
-                    'UPDATE heating_circuits SET last_config_json = ?, config_etag = ?, field_2040 = ?, config_etag_real = ? WHERE home_id = ? AND number = 1',
+                    'UPDATE heating_circuits SET config_etag = ?, field_2040 = ?, config_etag_real = ? WHERE home_id = ? AND number = 1',
                     [
-                        originalCircuitConfig.last_config_json,
                         originalCircuitConfig.config_etag,
                         originalCircuitConfig.field_2040,
                         originalCircuitConfig.config_etag_real,

@@ -13,6 +13,8 @@ const { getLogger } = require('../../lib/logger');
 const { getLocalParts, parseLocalTimeInTimezone, getDayBoundsInTimezone } = require('../../lib/utils');
 const battery = require('../../lib/battery');
 const { getFriendlyErrorFlags } = require('../../lib/mqtt-publisher');
+const dbUtils = require('../../lib/db-utils');
+const tlv = require('../../lib/tlv');
 
 const router = express.Router();
 const _log = getLogger('tanoclo-api');
@@ -90,17 +92,12 @@ router.get('/:homeId/tanoclo/boiler/raw', async (req, res) => {
         }
 
         const row = rows[0];
-        if (row.last_config_json) {
-            if (typeof row.last_config_json === 'object' && !Buffer.isBuffer(row.last_config_json)) {
-                row.last_config_decoded = row.last_config_json;
-                row.last_config_json = JSON.stringify(row.last_config_json);
-            } else {
-                try {
-                    row.last_config_decoded = JSON.parse(row.last_config_json);
-                } catch (e) {
-                    row.last_config_decoded = null;
-                }
-            }
+        delete row.last_config_json;
+        try {
+            const tlvBuf = await dbUtils.buildHvacConfigTLV(homeId);
+            row.last_config_decoded = (tlvBuf && tlvBuf.length > 0) ? tlv.decode(tlvBuf).fields : null;
+        } catch (e) {
+            row.last_config_decoded = null;
         }
         res.json(row);
     } catch (err) {
@@ -156,17 +153,12 @@ router.get('/:homeId/tanoclo/devices/:id/raw', async (req, res) => {
         }
 
         const device = deviceRows[0];
-        if (device.last_config_json) {
-            if (typeof device.last_config_json === 'object' && !Buffer.isBuffer(device.last_config_json)) {
-                device.last_config_decoded = device.last_config_json;
-                device.last_config_json = JSON.stringify(device.last_config_json);
-            } else {
-                try {
-                    device.last_config_decoded = JSON.parse(device.last_config_json);
-                } catch (e) {
-                    device.last_config_decoded = null;
-                }
-            }
+        delete device.last_config_json;
+        try {
+            const tlvBuf = await dbUtils.buildDeviceConfigTLV(device.serial_no, device);
+            device.last_config_decoded = (tlvBuf && tlvBuf.length > 0) ? tlv.decode(tlvBuf).fields : null;
+        } catch (e) {
+            device.last_config_decoded = null;
         }
 
         const [measurementRows] = await pool.execute(
@@ -197,17 +189,11 @@ router.get('/:homeId/tanoclo/zones/:id/raw', async (req, res) => {
         }
 
         const zone = zoneRows[0];
-        if (zone.last_config_json) {
-            if (typeof zone.last_config_json === 'object' && !Buffer.isBuffer(zone.last_config_json)) {
-                zone.last_config_decoded = zone.last_config_json;
-                zone.last_config_json = JSON.stringify(zone.last_config_json);
-            } else {
-                try {
-                    zone.last_config_decoded = JSON.parse(zone.last_config_json);
-                } catch (e) {
-                    zone.last_config_decoded = null;
-                }
-            }
+        delete zone.last_config_json;
+        try {
+            zone.last_config_decoded = await dbUtils.buildZoneConfigFields(homeId, zoneId);
+        } catch (e) {
+            zone.last_config_decoded = null;
         }
 
         const [measurementRows] = await pool.execute(
@@ -254,17 +240,12 @@ router.get('/:homeId/tanoclo/circuits/:id/raw', async (req, res) => {
         }
 
         const circuit = circuitRows[0];
-        if (circuit.last_config_json) {
-            if (typeof circuit.last_config_json === 'object' && !Buffer.isBuffer(circuit.last_config_json)) {
-                circuit.last_config_decoded = circuit.last_config_json;
-                circuit.last_config_json = JSON.stringify(circuit.last_config_json);
-            } else {
-                try {
-                    circuit.last_config_decoded = JSON.parse(circuit.last_config_json);
-                } catch (e) {
-                    circuit.last_config_decoded = null;
-                }
-            }
+        delete circuit.last_config_json;
+        try {
+            const tlvBuf = await dbUtils.buildCircuitConfigTLV(homeId, circuitNumber);
+            circuit.last_config_decoded = (tlvBuf && tlvBuf.length > 0) ? tlv.decode(tlvBuf).fields : null;
+        } catch (e) {
+            circuit.last_config_decoded = null;
         }
 
         const [measurementRows] = await pool.execute(
@@ -295,12 +276,12 @@ router.get('/:homeId/tanoclo/bridge', async (req, res) => {
         }
 
         const row = rows[0];
-        if (row.last_config_json) {
-            try {
-                row.last_config_decoded = JSON.parse(row.last_config_json);
-            } catch (e) {
-                row.last_config_decoded = null;
-            }
+        delete row.last_config_json;
+        try {
+            const tlvBuf = await dbUtils.buildDeviceConfigTLV(row.serial_no, row);
+            row.last_config_decoded = (tlvBuf && tlvBuf.length > 0) ? tlv.decode(tlvBuf).fields : null;
+        } catch (e) {
+            row.last_config_decoded = null;
         }
         res.json(row);
     } catch (err) {

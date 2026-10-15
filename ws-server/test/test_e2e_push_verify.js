@@ -379,15 +379,13 @@ async function runTests() {
             originalPresenceLocked = homeRows[0].presence_locked;
         }
         
-        const [deviceRows] = await pool.execute('SELECT last_config_json, child_lock_enabled FROM devices WHERE serial_no = ?', [DEVICE_ID]);
+        const [deviceRows] = await pool.execute('SELECT child_lock_enabled FROM devices WHERE serial_no = ?', [DEVICE_ID]);
         if (deviceRows.length > 0) {
-            originalDeviceConfig = deviceRows[0].last_config_json;
             originalChildLock = deviceRows[0].child_lock_enabled;
         }
 
-        const [zoneRows] = await pool.execute('SELECT last_config_json, default_overlay_type, default_overlay_duration FROM zones WHERE id = ? AND home_id = ?', [ZONE_ID, HOME_ID]);
+        const [zoneRows] = await pool.execute('SELECT default_overlay_type, default_overlay_duration FROM zones WHERE id = ? AND home_id = ?', [ZONE_ID, HOME_ID]);
         if (zoneRows.length > 0) {
-            originalZoneConfig = zoneRows[0].last_config_json;
             originalDefaultOverlayType = zoneRows[0].default_overlay_type;
             originalDefaultOverlayDuration = zoneRows[0].default_overlay_duration;
         }
@@ -806,11 +804,11 @@ async function runTests() {
             if (originalPresence !== null) {
                 await pool.execute('UPDATE homes SET presence = ?, presence_locked = ? WHERE id = ?', [originalPresence, originalPresenceLocked, HOME_ID]);
             }
-            if (originalDeviceConfig !== null) {
-                await pool.execute('UPDATE devices SET last_config_json = ?, child_lock_enabled = ? WHERE serial_no = ?', [originalDeviceConfig, originalChildLock, DEVICE_ID]);
+            if (originalChildLock !== null) {
+                await pool.execute('UPDATE devices SET child_lock_enabled = ? WHERE serial_no = ?', [originalChildLock, DEVICE_ID]);
             }
-            if (originalZoneConfig !== null) {
-                await pool.execute('UPDATE zones SET last_config_json = ?, default_overlay_type = ?, default_overlay_duration = ? WHERE id = ? AND home_id = ?', [originalZoneConfig, originalDefaultOverlayType, originalDefaultOverlayDuration, ZONE_ID, HOME_ID]);
+            if (originalDefaultOverlayType !== null) {
+                await pool.execute('UPDATE zones SET default_overlay_type = ?, default_overlay_duration = ? WHERE id = ? AND home_id = ?', [originalDefaultOverlayType, originalDefaultOverlayDuration, ZONE_ID, HOME_ID]);
             }
             // Also ensure any test overlays are deleted
             await pool.execute('DELETE FROM zone_overlays WHERE zone_id = ? AND home_id = ?', [ZONE_ID, HOME_ID]);
