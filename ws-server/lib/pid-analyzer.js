@@ -14,14 +14,55 @@ const { getLogger } = require('./logger');
 const log = getLogger('pid-analyzer');
 
 /**
+ * Validate whether an extracted window represents a legitimate heating transient.
+ * 
+ * @param {Object} win - Window candidate
+ * @param {number} minDemand - Minimum peak demand threshold (default 10%)
+ * @param {Array<Array<number>>|null} circuitIntervals - Active circuit intervals [[start, end]]
+ * @returns {boolean}
+ */
+function isQualifyingWindow(win, minDemand = 10, circuitIntervals = null) {
+    if (!win || !Array.isArray(win.points) || win.points.length < 4) return false;
+
+    // Minimum window duration 10 min
+    const durMin = (win.endTime - win.startTime) / (60 * 1000);
+    if (durMin < 10) return false;
+
+    // Must have active heating demand (not idle / solar gain)
+    const demands = win.points.map(p => Number(p.demand) || 0);
+    const peakDemand = Math.max(...demands);
+    const avgDemand = demands.reduce((a, b) => a + b, 0) / demands.length;
+
+    if (peakDemand < minDemand || avgDemand < 5) {
+        return false;
+    }
+
+    // If circuit activation intervals are available, verify circuit was active during this window
+    if (Array.isArray(circuitIntervals) && circuitIntervals.length > 0) {
+        const circuitWasActive = circuitIntervals.some(([cStart, cEnd]) => {
+            return win.startTime < cEnd && win.endTime > cStart;
+        });
+        if (!circuitWasActive) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
  * Group measurements into transient response windows following setpoint changes or heating initiations.
  * 
  * @param {Array<Object>} rows - Chronologically sorted zone measurements
  * @param {number} maxWindowMinutes - Max duration for transient window (default 120m)
+ * @param {Object} [options] - Optional filters { minDemand: 10, circuitIntervals: null }
  * @returns {Array<Object>} Transient windows [{ startTime, endTime, setpoint, startTemp, points }]
  */
-function extractTransientWindows(rows, maxWindowMinutes = 120) {
+function extractTransientWindows(rows, maxWindowMinutes = 120, options = {}) {
     if (!Array.isArray(rows) || rows.length < 5) return [];
+
+    const minDemand = typeof options.minDemand === 'number' ? options.minDemand : 10;
+    const circuitIntervals = options.circuitIntervals || null;
 
     const windows = [];
     let currentWindow = null;
@@ -50,7 +91,7 @@ function extractTransientWindows(rows, maxWindowMinutes = 120) {
         }
 
         if (sp === null) {
-            if (currentWindow && currentWindow.points.length >= 4) {
+            if (currentWindow && isQualifyingWindow(currentWindow, minDemand, circuitIntervals)) {
                 windows.push(currentWindow);
             }
             currentWindow = null;
@@ -60,16 +101,29 @@ function extractTransientWindows(rows, maxWindowMinutes = 120) {
 
         const demand = Number(row.field_40a0 || 0);
 
-        // Detect setpoint step change (delta >= 0.5°C) or new heating run
-        const isSetpointStep = (lastSetpoint === null) || (Math.abs(sp - lastSetpoint) >= 0.5);
-        const isHeatingInitiation = (demand > 0 && currentTemp < (sp - 0.3) && (!currentWindow || (rowTime - currentWindow.startTime) > maxWindowMinutes * 60 * 1000));
+        // Detect setpoint step change or new heating run
+        // Step UP into heating demand (sp > lastSetpoint + 0.4 and currentTemp < sp - 0.2)
+        const isSetpointStepUp = (lastSetpoint !== null) && ((sp - lastSetpoint) >= 0.4) && (currentTemp < (sp - 0.2)) && (demand >= minDemand);
+        // Heating initiation from cold/idle
+        const isHeatingInitiation = (demand >= minDemand && currentTemp < (sp - 0.3) && (!currentWindow || (rowTime - currentWindow.startTime) > maxWindowMinutes * 60 * 1000));
 
-        if (isSetpointStep || (isHeatingInitiation && !currentWindow)) {
-            if (currentWindow && currentWindow.points.length >= 4) {
+        // Setpoint step DOWN (night setback / lowering target): cooling transient, not heating!
+        if (lastSetpoint !== null && (lastSetpoint - sp) >= 0.4) {
+            if (currentWindow && isQualifyingWindow(currentWindow, minDemand, circuitIntervals)) {
+                windows.push(currentWindow);
+            }
+            currentWindow = null;
+            lastSetpoint = sp;
+            continue;
+        }
+
+        if (isSetpointStepUp || (isHeatingInitiation && !currentWindow)) {
+            if (currentWindow && isQualifyingWindow(currentWindow, minDemand, circuitIntervals)) {
                 windows.push(currentWindow);
             }
             currentWindow = {
                 startTime: rowTime,
+                endTime: rowTime,
                 setpoint: sp,
                 startTemp: currentTemp,
                 points: [{ ...row, parsedTime: rowTime, temp: currentTemp, demand, sp }]
@@ -81,7 +135,7 @@ function extractTransientWindows(rows, maxWindowMinutes = 120) {
                 currentWindow.points.push({ ...row, parsedTime: rowTime, temp: currentTemp, demand, sp });
                 currentWindow.endTime = rowTime;
             } else {
-                if (currentWindow.points.length >= 4) {
+                if (isQualifyingWindow(currentWindow, minDemand, circuitIntervals)) {
                     windows.push(currentWindow);
                 }
                 currentWindow = null;
@@ -90,7 +144,7 @@ function extractTransientWindows(rows, maxWindowMinutes = 120) {
         lastSetpoint = sp;
     }
 
-    if (currentWindow && currentWindow.points.length >= 4) {
+    if (currentWindow && isQualifyingWindow(currentWindow, minDemand, circuitIntervals)) {
         windows.push(currentWindow);
     }
 
@@ -127,9 +181,18 @@ function evaluateZoneTransients(windows) {
         const sp = win.setpoint;
         let peakTemp = win.startTemp;
 
-        // Measure overshoot
+        // Measure overshoot: only count peak temperatures reached during active heating
+        // or within 35 min thermal inertia period after heating demand was active
+        let lastActiveDemandTime = win.startTime;
         for (const pt of pts) {
-            if (pt.temp > peakTemp) peakTemp = pt.temp;
+            if (pt.demand > 5) {
+                lastActiveDemandTime = pt.parsedTime;
+            }
+            const timeSinceActive = (pt.parsedTime - lastActiveDemandTime) / 60000;
+            // Attribute temp rise to heating only if within 35 mins of active demand
+            if (timeSinceActive <= 35 && pt.temp > peakTemp) {
+                peakTemp = pt.temp;
+            }
         }
         const overshoot = Math.max(0, peakTemp - sp);
         totalOvershoot += overshoot;
@@ -152,20 +215,28 @@ function evaluateZoneTransients(windows) {
         }
 
         // Steady state error: average error across the last 30% of the window
+        // Only evaluate if demand was actively regulating (i.e. heating was engaged)
         if (pts.length >= 6) {
             const tailCount = Math.max(2, Math.floor(pts.length * 0.3));
             const tailPts = pts.slice(-tailCount);
+            const avgTailDemand = tailPts.reduce((acc, p) => acc + (p.demand || 0), 0) / tailCount;
             const avgTailTemp = tailPts.reduce((acc, p) => acc + p.temp, 0) / tailCount;
-            const sse = sp - avgTailTemp; // positive means undershooting/droop
-            totalSteadyStateError += sse;
+            if (avgTailDemand > 0 || avgTailTemp >= (sp - 0.3)) {
+                const sse = sp - avgTailTemp; // positive means undershooting/droop
+                totalSteadyStateError += sse;
+            }
         }
 
-        // Oscillations: count direction changes around setpoint
+        // Oscillations: count direction changes around setpoint DURING active regulation
         let directionChanges = 0;
         let lastSlope = 0;
         for (let i = 1; i < pts.length; i++) {
             const dt = (pts[i].parsedTime - pts[i - 1].parsedTime) / 60000;
             if (dt <= 0) continue;
+            // Loop hunting requires either current point or previous point to have heating demand
+            const hasDemand = ((pts[i].demand || 0) > 0 || (pts[i - 1].demand || 0) > 0);
+            if (!hasDemand) continue;
+
             const slope = (pts[i].temp - pts[i - 1].temp) / dt;
             if (Math.abs(slope) > 0.01) {
                 if (lastSlope !== 0 && ((slope > 0 && lastSlope < 0) || (slope < 0 && lastSlope > 0))) {
@@ -291,7 +362,7 @@ async function analyzePidTuning(homeId, options = {}) {
 
     // 1. Fetch heating zones
     const [zones] = await pool.execute(
-        `SELECT id, name, field_6080, field_60a0, field_60c0 
+        `SELECT id, name, heating_circuit, field_6080, field_60a0, field_60c0 
          FROM zones 
          WHERE home_id = ? AND type = 'HEATING' 
          ORDER BY id ASC`,
@@ -315,7 +386,40 @@ async function analyzePidTuning(homeId, options = {}) {
         [homeId, cutoffStr]
     );
 
-    // 3. Query latest applied hydraulic balancing snapshot
+    // 3. Query circuit measurements to track active heating circuit intervals
+    const circuitIntervalsByCircuit = new Map();
+    try {
+        const [circuitRows] = await pool.execute(
+            `SELECT timestamp, circuit_number, field_4080, field_0457, field_0452 
+             FROM circuit_measurements 
+             WHERE home_id = ? AND timestamp >= ? 
+             ORDER BY timestamp ASC`,
+            [homeId, cutoffStr]
+        );
+
+        if (Array.isArray(circuitRows) && circuitRows.length > 0) {
+            for (const cRow of circuitRows) {
+                const cNum = Number(cRow.circuit_number) || 1;
+                const isCircuitActive = (Number(cRow.field_4080) > 0) || Boolean(cRow.field_0457) || (Number(cRow.field_0452) > 0);
+                if (isCircuitActive) {
+                    const t = new Date(cRow.timestamp).getTime();
+                    if (!isNaN(t)) {
+                        if (!circuitIntervalsByCircuit.has(cNum)) circuitIntervalsByCircuit.set(cNum, []);
+                        const intervals = circuitIntervalsByCircuit.get(cNum);
+                        if (intervals.length > 0 && (t - intervals[intervals.length - 1][1]) <= 15 * 60 * 1000) {
+                            intervals[intervals.length - 1][1] = t + 5 * 60 * 1000;
+                        } else {
+                            intervals.push([t, t + 10 * 60 * 1000]);
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        log('warn', `Failed to query circuit measurements for PID tuning: ${e.message}`);
+    }
+
+    // 4. Query latest applied hydraulic balancing snapshot
     let hydraulicBaseline = null;
     try {
         const [hRows] = await pool.execute(
@@ -349,8 +453,11 @@ async function analyzePidTuning(homeId, options = {}) {
 
     for (const zone of zones) {
         const zId = Number(zone.id);
+        const cNum = Number(zone.heating_circuit) || 1;
+        const circuitIntervals = circuitIntervalsByCircuit.get(cNum) || null;
+
         const rows = zoneMap.get(zId) || [];
-        const windows = extractTransientWindows(rows);
+        const windows = extractTransientWindows(rows, 120, { circuitIntervals });
         totalWindows += windows.length;
 
         const metrics = evaluateZoneTransients(windows);

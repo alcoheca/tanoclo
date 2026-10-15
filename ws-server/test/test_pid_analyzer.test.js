@@ -41,6 +41,53 @@ describe('Thermodynamic PID Analyzer', () => {
             expect(windows[1].setpoint).toBe(23.0);
             expect(windows[1].startTemp).toBe(21.0);
         });
+
+        it('ignores night setback step-downs without generating false cooling transients', () => {
+            const rows = [
+                // Setpoint drops from 21.0 down to 17.0 (night setback)
+                { timestamp: '2026-10-10 22:00:00', field_012d: 21.0, field_40a0: 0, field_6200: 17.0, field_6260: 0, field_61e0: 1 },
+                { timestamp: '2026-10-10 22:10:00', field_012d: 20.8, field_40a0: 0, field_6200: 17.0, field_6260: 0, field_61e0: 1 },
+                { timestamp: '2026-10-10 22:20:00', field_012d: 20.5, field_40a0: 0, field_6200: 17.0, field_6260: 0, field_61e0: 1 },
+                { timestamp: '2026-10-10 22:30:00', field_012d: 20.2, field_40a0: 0, field_6200: 17.0, field_6260: 0, field_61e0: 1 },
+                { timestamp: '2026-10-10 22:40:00', field_012d: 19.8, field_40a0: 0, field_6200: 17.0, field_6260: 0, field_61e0: 1 }
+            ];
+
+            const windows = extractTransientWindows(rows);
+            // Must NOT extract a window for cooling/setback
+            expect(windows).toHaveLength(0);
+        });
+
+        it('discards windows with zero or negligible heating demand (solar gain)', () => {
+            const rows = [
+                // Target 21.0, room heats naturally from 19.0 to 22.0 while demand is 0
+                { timestamp: '2026-10-10 12:00:00', field_012d: 19.0, field_40a0: 0, field_6200: 21.0, field_6260: 0, field_61e0: 1 },
+                { timestamp: '2026-10-10 12:15:00', field_012d: 20.0, field_40a0: 0, field_6200: 21.0, field_6260: 0, field_61e0: 1 },
+                { timestamp: '2026-10-10 12:30:00', field_012d: 21.0, field_40a0: 0, field_6200: 21.0, field_6260: 0, field_61e0: 1 },
+                { timestamp: '2026-10-10 12:45:00', field_012d: 22.0, field_40a0: 0, field_6200: 21.0, field_6260: 0, field_61e0: 1 },
+                { timestamp: '2026-10-10 13:00:00', field_012d: 22.5, field_40a0: 0, field_6200: 21.0, field_6260: 0, field_61e0: 1 }
+            ];
+
+            const windows = extractTransientWindows(rows);
+            expect(windows).toHaveLength(0);
+        });
+
+        it('discards window when circuit telemetry shows circuit was inactive throughout', () => {
+            const rows = [
+                // Zone requests heat, but circuit was off
+                { timestamp: '2026-10-10 10:00:00', field_012d: 19.0, field_40a0: 80, field_6200: 21.0, field_6260: 0, field_61e0: 1 },
+                { timestamp: '2026-10-10 10:05:00', field_012d: 19.2, field_40a0: 80, field_6200: 21.0, field_6260: 0, field_61e0: 1 },
+                { timestamp: '2026-10-10 10:10:00', field_012d: 19.4, field_40a0: 80, field_6200: 21.0, field_6260: 0, field_61e0: 1 },
+                { timestamp: '2026-10-10 10:15:00', field_012d: 19.6, field_40a0: 80, field_6200: 21.0, field_6260: 0, field_61e0: 1 }
+            ];
+
+            // Circuit only active at 15:00-16:00
+            const circuitIntervals = [
+                [new Date('2026-10-10 15:00:00').getTime(), new Date('2026-10-10 16:00:00').getTime()]
+            ];
+
+            const windows = extractTransientWindows(rows, 120, { circuitIntervals });
+            expect(windows).toHaveLength(0);
+        });
     });
 
     describe('evaluateZoneTransients', () => {

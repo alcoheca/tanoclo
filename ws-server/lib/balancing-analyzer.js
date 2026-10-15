@@ -20,15 +20,29 @@ const log = getLogger('balancing-analyzer');
  * @param {number} maxGapMinutes - Max allowed gap before starting a new run (default: 10)
  * @param {number} minDurationMinutes - Min run duration to be statistically valid (default: 5)
  * @param {number} minPoints - Min number of data points required (default: 3)
+ * @param {Object} [options] - Optional filters { minDemand: 10, circuitIntervals: null }
  * @returns {Array<Object>} Qualifying heating runs [{ startTime, endTime, durationMinutes, points }]
  */
-function groupHeatingRuns(measurements, maxGapMinutes = 10, minDurationMinutes = 5, minPoints = 3) {
+function groupHeatingRuns(measurements, maxGapMinutes = 10, minDurationMinutes = 5, minPoints = 3, options = {}) {
     if (!Array.isArray(measurements) || measurements.length === 0) return [];
+
+    const minDemand = typeof options.minDemand === 'number' ? options.minDemand : 10;
+    const circuitIntervals = options.circuitIntervals || null;
 
     const activeRows = measurements.filter(m => {
         const heatingPower = Number(m.field_40a0 || 0);
         const mode = (m.tado_mode || 'HOME').toUpperCase();
-        return heatingPower > 0 && mode === 'HOME';
+        if (heatingPower < minDemand || mode !== 'HOME') return false;
+
+        if (Array.isArray(circuitIntervals) && circuitIntervals.length > 0) {
+            const t = new Date(m.timestamp).getTime();
+            if (!isNaN(t)) {
+                const inCircuit = circuitIntervals.some(([cStart, cEnd]) => t >= cStart && t <= cEnd);
+                if (!inCircuit) return false;
+            }
+        }
+
+        return true;
     });
 
     if (activeRows.length === 0) return [];
@@ -243,7 +257,7 @@ async function analyzeBalancing(homeId, options = {}) {
 
     // 1. Fetch heating zones
     const [zones] = await pool.execute(
-        'SELECT id, name, type FROM zones WHERE home_id = ? AND type = "HEATING"',
+        'SELECT id, name, type, heating_circuit FROM zones WHERE home_id = ? AND type = "HEATING"',
         [homeId]
     );
 
@@ -291,20 +305,39 @@ async function analyzeBalancing(homeId, options = {}) {
 
     // 5. Fetch circuit measurements if available
     let avgCircuitDeltaT = null;
+    const circuitIntervalsByCircuit = new Map();
     try {
         const [circuitRows] = await pool.execute(
-            `SELECT timestamp, field_044c, field_044d 
+            `SELECT timestamp, circuit_number, field_4080, field_0457, field_0452, field_044c, field_044d 
              FROM circuit_measurements 
              WHERE home_id = ? AND timestamp >= ? 
-               AND field_044c IS NOT NULL AND field_044d IS NOT NULL
-               AND field_044c > field_044d
              ORDER BY timestamp ASC`,
             [homeId, cutoffStr]
         );
 
         if (circuitRows && circuitRows.length > 0) {
-            const sumDelta = circuitRows.reduce((acc, row) => acc + (Number(row.field_044c) - Number(row.field_044d)), 0);
-            avgCircuitDeltaT = Math.round((sumDelta / circuitRows.length) * 10) / 10;
+            const validDeltas = circuitRows.filter(r => r.field_044c !== null && r.field_044d !== null && Number(r.field_044c) > Number(r.field_044d));
+            if (validDeltas.length > 0) {
+                const sumDelta = validDeltas.reduce((acc, row) => acc + (Number(row.field_044c) - Number(row.field_044d)), 0);
+                avgCircuitDeltaT = Math.round((sumDelta / validDeltas.length) * 10) / 10;
+            }
+
+            for (const cRow of circuitRows) {
+                const cNum = Number(cRow.circuit_number) || 1;
+                const isCircuitActive = (Number(cRow.field_4080) > 0) || Boolean(cRow.field_0457) || (Number(cRow.field_0452) > 0);
+                if (isCircuitActive) {
+                    const t = new Date(cRow.timestamp).getTime();
+                    if (!isNaN(t)) {
+                        if (!circuitIntervalsByCircuit.has(cNum)) circuitIntervalsByCircuit.set(cNum, []);
+                        const intervals = circuitIntervalsByCircuit.get(cNum);
+                        if (intervals.length > 0 && (t - intervals[intervals.length - 1][1]) <= 15 * 60 * 1000) {
+                            intervals[intervals.length - 1][1] = t + 5 * 60 * 1000;
+                        } else {
+                            intervals.push([t, t + 10 * 60 * 1000]);
+                        }
+                    }
+                }
+            }
         }
     } catch (err) {
         log('warn', `Failed to query circuit measurements for home ${homeId}: ${err.message}`);
@@ -344,9 +377,13 @@ async function analyzeBalancing(homeId, options = {}) {
     let totalHeatingRuns = 0;
 
     for (const zone of zones) {
-        const zRows = zoneMeasurementsMap.get(Number(zone.id)) || [];
-        const runs = groupHeatingRuns(zRows);
-        zoneRunsMap.set(Number(zone.id), runs);
+        const zId = Number(zone.id);
+        const cNum = Number(zone.heating_circuit) || 1;
+        const circuitIntervals = circuitIntervalsByCircuit.get(cNum) || null;
+
+        const zRows = zoneMeasurementsMap.get(zId) || [];
+        const runs = groupHeatingRuns(zRows, 10, 5, 3, { circuitIntervals });
+        zoneRunsMap.set(zId, runs);
         totalHeatingRuns += runs.length;
     }
 
