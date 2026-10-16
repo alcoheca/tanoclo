@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-15
+
+- feat: Improve PID/Balancing
+- fix(config): Stop using last_config_json to fix device/zone/circuit/hvac configs
+
 ## [0.8.0] - 2026-10-12
 
 - fix: various
