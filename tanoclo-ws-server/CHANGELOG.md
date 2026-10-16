@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-16
+
+- feat: Improve Thermodynamic and hydraulic balancing
+
 ## [0.8.1] - 2026-10-15
 
 - feat: Improve PID/Balancing
