@@ -208,7 +208,15 @@ export default function PidTuningSettings({ homeId, zones = [], isReadOnly = fal
             variant="primary"
             onClick={handleRunAnalysis}
             disabled={isAnalyzing}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              minWidth: '160px',
+              height: '38px',
+              flexShrink: 0
+            }}
           >
             {isAnalyzing ? <Spinner size={16} /> : <TrendingUp size={16} />}
             <span>{isAnalyzing ? t('pid_tuning.analyzing', { defaultValue: 'Analyzing...' }) : t('pid_tuning.run_analysis', { defaultValue: 'Run PID Analysis' })}</span>
@@ -237,7 +245,15 @@ export default function PidTuningSettings({ homeId, zones = [], isReadOnly = fal
               variant="primary"
               onClick={handleApplyAll}
               disabled={isApplying || isReadOnly}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                minWidth: '180px',
+                height: '38px',
+                flexShrink: 0
+              }}
             >
               {isApplying ? <Spinner size={16} /> : <CheckCircle2 size={16} />}
               <span>{t('pid_tuning.apply_all', { defaultValue: 'Apply Suggested Gains' })}</span>

@@ -293,11 +293,19 @@ export default function BalancingSettings({ homeId, devices = [], zones = [], is
             variant="primary"
             onClick={handleRunAnalysis}
             disabled={isAnalyzing || isReadOnly}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              minWidth: '140px',
+              height: '38px',
+              flexShrink: 0
+            }}
           >
             {isAnalyzing ? (
               <>
-                <Spinner size="sm" />
+                <Spinner size={16} />
                 <span>{t('balancing.analyzing', { defaultValue: 'Analyzing...' })}</span>
               </>
             ) : (
@@ -560,11 +568,20 @@ export default function BalancingSettings({ homeId, devices = [], zones = [], is
               variant="primary"
               onClick={handleApplyAll}
               disabled={isApplying || isReadOnly}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                minWidth: '180px',
+                height: '38px',
+                flexShrink: 0,
+                fontWeight: 600
+              }}
             >
               {isApplying ? (
                 <>
-                  <Spinner size="sm" />
+                  <Spinner size={16} />
                   <span>{t('balancing.applying', { defaultValue: 'Applying...' })}</span>
                 </>
               ) : (
@@ -701,7 +718,7 @@ export default function BalancingSettings({ homeId, devices = [], zones = [], is
                                   {dev.serialNo}
                                 </span>
                               )}
-                              {isSaving && <Spinner size="sm" />}
+                              {isSaving && <Spinner size={14} />}
                             </div>
 
                             {/* Metadata Badges: Type, Battery */}

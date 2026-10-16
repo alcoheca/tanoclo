@@ -16,6 +16,7 @@ const commandApi = require('../../../lib/command-api');
 const mqttPublisher = require('../../../lib/mqtt-publisher');
 const { checkZoneConfigReadonly } = require('./helpers');
 const { analyzeBalancing } = require('../../../lib/balancing-analyzer');
+const { pruneBalancingSnapshots } = require('../../../lib/snapshot-cleanup');
 
 const router = express.Router();
 const _log = getLogger('balancing-api');
@@ -45,6 +46,9 @@ router.get('/:homeId/balancing/analysis', async (req, res) => {
                 [homeId, JSON.stringify(analysis)]
             );
             snapshotId = insertRes.insertId;
+
+            // Enforce max retention in DB and prune snapshots older than 3 days
+            await pruneBalancingSnapshots(homeId, 5, 3);
         } catch (dbErr) {
             _log('warn', `Failed to save balancing snapshot for home ${homeId}: ${dbErr.message}`);
         }

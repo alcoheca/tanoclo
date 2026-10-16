@@ -14,6 +14,7 @@ const { getLocalParts, parseLocalTimeInTimezone } = require('./utils');
 const { getLogger } = require('./logger');
 const log = getLogger('cron');
 const meshRecovery = require('./mesh-recovery');
+const { pruneAllSnapshots } = require('./snapshot-cleanup');
 
 let _broadcastTimeFn = null;
 let _broadcastRfKeyFn = null;
@@ -548,6 +549,9 @@ async function runCleanup() {
 
         const [res3] = await pool.execute('DELETE FROM oauth_auth_codes WHERE expires_at < ?', [nowStr]);
         if (res3.affectedRows > 0) log('info', `Cleaned up ${res3.affectedRows} expired OAuth auth codes`);
+
+        // Prune old balancing and PID tuning snapshots (keep max 5, max 3 days retention)
+        await pruneAllSnapshots(5, 3);
 
         log('info', 'Cleanup complete');
 

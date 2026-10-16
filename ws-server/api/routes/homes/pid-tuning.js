@@ -15,6 +15,7 @@ const { getLogger } = require('../../../lib/logger');
 const commandApi = require('../../../lib/command-api');
 const { checkZoneConfigReadonly } = require('./helpers');
 const { analyzePidTuning } = require('../../../lib/pid-analyzer');
+const { prunePidTuningSnapshots } = require('../../../lib/snapshot-cleanup');
 
 const router = express.Router();
 const _log = getLogger('pid-tuning-api');
@@ -45,6 +46,9 @@ router.get('/:homeId/pid-tuning/analysis', async (req, res) => {
                 [homeId, hydId, JSON.stringify(analysis)]
             );
             snapshotId = insertRes.insertId;
+
+            // Enforce max retention in DB and prune snapshots older than 3 days
+            await prunePidTuningSnapshots(homeId, 5, 3);
         } catch (dbErr) {
             _log('warn', `Failed to save PID tuning snapshot for home ${homeId}: ${dbErr.message}`);
         }
