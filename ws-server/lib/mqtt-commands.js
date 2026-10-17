@@ -753,6 +753,32 @@ async function handleEmulatedCommand(topic, payloadStr) {
     }
 }
 
+/**
+ * Apply a reading from a trusted internal source (see lib/zigbee-source.js): update the
+ * stored state, mirror it to the MQTT state topic and optionally push it over RF.
+ */
+async function applyEmulatedTelemetry(serial, data, { push = true } = {}) {
+    const dbDevices = require('./db-devices');
+    const dev = (await dbDevices.getAllEmulatedDevices()).find(d => d.serial_no === serial);
+    if (!dev) return false;
+    if (!emulatedStates.has(serial)) {
+        emulatedStates.set(serial, { temp_celsius: 21.5, humidity_percent: 50.0, battery_mv: 4500 });
+    }
+    const state = emulatedStates.get(serial);
+    if (data.temp_celsius !== undefined) state.temp_celsius = data.temp_celsius;
+    if (data.humidity_percent !== undefined) state.humidity_percent = data.humidity_percent;
+    if (data.battery_mv !== undefined) state.battery_mv = data.battery_mv;
+    _pub(`tado/tanoclo/emulated/${serial}/state`, JSON.stringify({
+        serial,
+        temp_celsius: state.temp_celsius,
+        humidity_percent: state.humidity_percent,
+        battery_mv: state.battery_mv,
+        updated_at: new Date().toISOString()
+    }));
+    if (push) dispatchEsp32Telemetry(dev, serial, state, 0);
+    return true;
+}
+
 function dispatchEsp32Telemetry(dev, serial, state, attempt = 0) {
     if (attempt === 0 && pendingEsp32Retries.has(serial)) {
         clearTimeout(pendingEsp32Retries.get(serial));
@@ -851,5 +877,6 @@ function _pub(topic, value) {
 
 module.exports = {
     init,
-    getEmulatedState
+    getEmulatedState,
+    applyEmulatedTelemetry
 };
