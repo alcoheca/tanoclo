@@ -198,12 +198,18 @@ async function checkAndSync(force = false) {
       }
     }
 
-    // Background download APK for mobile client delivery — compare against local snapshot
+    // Background download APK for mobile client delivery — compare against local snapshot & SHA
     const remoteApkCode = remoteManifest ? (remoteManifest.apkVersionCode || 0) : 0;
-    if (!fs.existsSync(apkCacheFile) || (remoteManifest && remoteApkCode > prevLocalApkCode)) {
+    const remoteApkSha = remoteManifest?.apkSha256 ? String(remoteManifest.apkSha256).toLowerCase().trim() : null;
+    const currentApkSha = fs.existsSync(apkCacheFile) ? (computeFileSha256(apkCacheFile) || '').toLowerCase().trim() : null;
+    const apkNeedsUpdate = !fs.existsSync(apkCacheFile) 
+      || (remoteManifest && remoteApkCode > prevLocalApkCode)
+      || (remoteApkSha && currentApkSha && remoteApkSha !== currentApkSha);
+
+    if (apkNeedsUpdate) {
       const downloadApkUrl = remoteManifest?.apkUrl || apkUrl;
       try {
-        log('info', `Downloading APK (local=${prevLocalApkCode} remote=${remoteApkCode}) from: ${downloadApkUrl}`);
+        log('info', `Downloading APK (localCode=${prevLocalApkCode} remoteCode=${remoteApkCode} shaMatch=${currentApkSha === remoteApkSha}) from: ${downloadApkUrl}`);
         const apkBuffer = await fetchUrlBuffer(downloadApkUrl);
         fs.writeFileSync(apkCacheFile, apkBuffer);
       } catch (err) {

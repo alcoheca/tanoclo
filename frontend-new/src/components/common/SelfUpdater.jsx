@@ -152,18 +152,19 @@ export default function SelfUpdater() {
       }
 
       // 2. Native APK Update via SelfUpdate plugin
-      // Compare SHA-256 checksums if available; any hash difference triggers update.
+      // Compare SHA-256 checksums if available; any hash difference triggers update unless remote is older versionCode.
       const remoteSha = manifestData.apkSha256 ? String(manifestData.apkSha256).toLowerCase().trim() : null;
       const localSha = localInfo.apkSha256 ? String(localInfo.apkSha256).toLowerCase().trim() : null;
+      const remoteApkCode = Number(manifestData.apkVersionCode || manifestData.versionCode || 0);
+      const localApkCode = Number(localInfo.versionCode || 0);
 
       let isApkUpdateAvailable = false;
       if (remoteSha && localSha) {
-        isApkUpdateAvailable = (remoteSha !== localSha);
-        logger.debug(`[SelfUpdater] APK SHA check: remote=${remoteSha} local=${localSha} -> update=${isApkUpdateAvailable}`);
+        const notDowngrade = !remoteApkCode || !localApkCode || remoteApkCode >= localApkCode;
+        isApkUpdateAvailable = (remoteSha !== localSha) && notDowngrade;
+        logger.debug(`[SelfUpdater] APK SHA check: remote=${remoteSha} local=${localSha} notDowngrade=${notDowngrade} -> update=${isApkUpdateAvailable}`);
       } else {
         // Fallback to versionCode if SHA is missing from either side
-        const remoteApkCode = Number(manifestData.apkVersionCode || manifestData.versionCode || 0);
-        const localApkCode = Number(localInfo.versionCode || 0);
         isApkUpdateAvailable = (remoteApkCode > localApkCode);
         logger.debug(`[SelfUpdater] APK versionCode check: remote=${remoteApkCode} local=${localApkCode} -> update=${isApkUpdateAvailable}`);
       }

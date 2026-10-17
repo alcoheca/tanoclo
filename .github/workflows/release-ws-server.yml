@@ -93,7 +93,7 @@ jobs:
           # package.json files
           node -e "
             const fs = require('fs');
-            const files = ['package.json', 'ws-server/package.json'];
+            const files = ['package.json', 'ws-server/package.json', 'frontend-new/package.json'];
             for (const f of files) {
               if (fs.existsSync(f)) {
                 const pkg = JSON.parse(fs.readFileSync(f, 'utf8'));
@@ -190,6 +190,7 @@ jobs:
         run: |
           npm install --package-lock-only --ignore-scripts 2>/dev/null || true
           cd ws-server && npm install --package-lock-only --ignore-scripts 2>/dev/null || true && cd ..
+          cd frontend-new && npm install --package-lock-only --ignore-scripts 2>/dev/null || true && cd ..
 
       - name: Commit and tag
         run: |
