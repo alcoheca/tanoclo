@@ -5,13 +5,12 @@
 #              certificates lookup, log levels, and domain strings.
 # ==============================================================================
 name: "TaNoClo WebSocket Server"
-version: "0.8.3"
+version: "0.8.3-fork1"
 slug: "tanoclo-ws-server"
 description: "Self-hosted Tado compatible WebSocket and API Server"
-url: "https://github.com/tanoclo/tanoclo"
-image: "ghcr.io/tanoclo/tanoclo-ws-server"
+url: "https://github.com/alcoheca/tanoclo"
+image: "ghcr.io/alcoheca/tanoclo-ws-server"
 arch:
-  - amd64
   - aarch64
 startup: "application"
 boot: "auto"
