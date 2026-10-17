@@ -15,11 +15,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Clone only the ws-server directory using Git sparse checkout (avoids downloading the entire repo)
-RUN REPO_URL="https://github.com/tanoclo/tanoclo.git" \
-    && git clone --depth 1 --filter=blob:none --sparse "$REPO_URL" /tmp/repo \
+# Fallback only: normally Home Assistant pulls the prebuilt image named in config.yaml.
+ARG BUILD_VERSION
+RUN echo "building ${BUILD_VERSION}" \
+    && REPO_URL="https://github.com/alcoheca/tanoclo.git" \
+    && git clone --depth 1 --branch deploy/home-0.8.2 --filter=blob:none --sparse "$REPO_URL" /tmp/repo \
     && cd /tmp/repo \
     && git sparse-checkout set ws-server \
-    && cp -r /tmp/repo/ws-server ./ws-server \
+    && cp -r /tmp/repo/ws-server /app/ws-server \
     && rm -rf /tmp/repo
 
 # Install npm dependencies (production only)
