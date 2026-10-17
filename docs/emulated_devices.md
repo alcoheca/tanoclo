@@ -254,6 +254,23 @@ max_exceeded: silent
 
 ---
 
+### 5.4 Direct MQTT Sensor Source (Zigbee2MQTT, no automation)
+
+Instead of the automation above, bind an emulated device to the MQTT topic of a sensor on the same broker. In the Setup Portal's Emulated Devices table click **Set source** and enter the topic (e.g. `zigbee2mqtt/living-room`), or call:
+
+```bash
+curl -X PUT .../setup/emulated/devices/RU4200000001/source \
+  -H 'Content-Type: application/json' \
+  -d '{"source_topic":"zigbee2mqtt/living-room"}'   # optional: source_temp_key / source_humidity_key / source_battery_key
+```
+
+Send `{"source_topic": null}` to unbind. Behaviour (`ws-server/lib/zigbee-source.js`):
+
+- JSON keys default to `temperature`, `humidity`, `battery` (battery % is mapped to 3000-4500 mV). Values outside plausible ranges are ignored.
+- A changed reading (>= 0.1 °C) is pushed over RF at most every 30 s; unchanged readings are pushed as a 5 min heartbeat.
+- If the source is silent for 30 min the bridge stops pushing the old value (logged as a warning; shown as "Source (stale)" in the portal) and resumes on the next reading.
+- Wildcard topics and anything under `tado/tanoclo/` are rejected.
+
 ## 6. Closed-Loop PID Control Law & NVS State Persistence
 
 Emulated Room Units (`RU01` / `RU02`) use the following closed-loop PID control laws:

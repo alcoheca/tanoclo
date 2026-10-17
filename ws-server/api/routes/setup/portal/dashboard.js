@@ -1945,6 +1945,7 @@ router.get('/dashboard', adminAuth, async (req, res) => {
                                     '<td><span class="badge ' + (d.pairing_state === 'PAIRED' ? 'bg-success' : 'bg-warning text-dark') + '">' + d.pairing_state + '</span></td>' +
                                     '<td class="table-actions-cell">' +
                                         '<div class="d-inline-flex align-items-center gap-1 justify-content-end">' +
+                                            '<button class="btn-action-telemetry" data-serial="' + d.serial_no + '" data-topic="' + (d.source_topic || '').replace(/"/g, '&quot;') + '" onclick="editSensorSource(this.dataset.serial, this.dataset.topic)" title="Feed this device from an MQTT sensor topic (e.g. Zigbee2MQTT)"><i class="bi bi-diagram-3"></i> ' + (d.source_topic ? (d.source_status && d.source_status.stale ? 'Source (stale)' : 'Source') : 'Set source') + '</button>' +
                                             '<button class="btn-action-telemetry" id="tel_btn_' + d.serial_no + '" data-serial="' + d.serial_no + '" onclick="triggerTelemetry(this.dataset.serial)"><i class="bi bi-broadcast"></i> <span data-i18n="emulated.btn_send_telemetry">' + sendTelText + '</span></button>' +
                                             '<button class="btn-action-danger" data-serial="' + d.serial_no + '" onclick="deleteEmulatedDevice(this.dataset.serial)" title="Delete Device"><i class="bi bi-trash"></i></button>' +
                                         '</div>' +
@@ -2052,6 +2053,14 @@ router.get('/dashboard', adminAuth, async (req, res) => {
                         const suffix = window.t ? window.t('emulated.confirm_delete_dev_suffix', '? This will send unassociation config over RF and erase ESP32 NVRAM.') : '? This will send unassociation config over RF and erase ESP32 NVRAM.';
                         if (!confirm(prefix + serialNo + suffix)) return;
                         await apiCall('/setup/emulated/devices/' + serialNo, 'DELETE');
+                        loadEmulatedData();
+                    }
+
+                    async function editSensorSource(serialNo, current) {
+                        const topic = prompt('MQTT topic of the sensor feeding ' + serialNo + ' (e.g. zigbee2mqtt/living-room). Leave empty to unbind.', current || '');
+                        if (topic === null) return;
+                        const res = await apiCall('/setup/emulated/devices/' + serialNo + '/source', 'PUT', { source_topic: topic.trim() });
+                        if (res && !res.success) alert('Failed: ' + (res.error || 'unknown error'));
                         loadEmulatedData();
                     }
 
