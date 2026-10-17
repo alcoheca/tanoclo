@@ -1,5 +1,5 @@
 /**
- * Migration 0013: Let an emulated device take its readings from an MQTT source
+ * Migration 0023: Let an emulated device take its readings from an MQTT source
  * (e.g. a Zigbee2MQTT thermometer topic).
  */
 
