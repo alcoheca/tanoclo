@@ -222,6 +222,23 @@ function handleAckReceived(midInput, deviceIdOrMsg) {
         }
     }
 
+    // DIAGNOSTIC: surface the device's response body for plain /api/send commands.
+    // Previously only waitForAck/query callers (_ackCallbacks/_pendingQueries) saw the
+    // payload; a tracked command (_pendingCommands) extracted it then dropped it, so a
+    // GET issued via /api/send showed only "Received ACK ... Canceling retry timer".
+    // Log it (INFO so it reaches stdout too) with a best-effort TLV decode so live
+    // device state (e.g. a valve's held z/s) can actually be read back.
+    if (pending && payload && payload.length > 0) {
+        const respHex = payload.toString('hex');
+        let decoded = '';
+        try {
+            const d = tlv.decode(payload);
+            if (d && d.ok && d.fields) decoded = ' fields=' + JSON.stringify(d.fields);
+        } catch (e) { /* best-effort decode only */ }
+        const respCode = coapMsg ? (coapMsg.codeStr || coapMsg.code) : '?';
+        _log('info', `[cmd-api] Response payload for MID ${mid} from ${displayId}: code=${respCode} len=${payload.length} hex=${respHex}${decoded}`);
+    }
+
     const cb = _ackCallbacks.get(mid) || _ackCallbacks.get(midInput);
     if (cb) {
         const hex = payload ? payload.toString('hex') : null;
