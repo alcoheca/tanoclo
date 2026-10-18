@@ -320,24 +320,24 @@ async function pushScheduleTransition(homeId, zoneId) {
     }
 
     const isHotWater = (zone && zone.type === 'HOT_WATER');
+    const finalEnabled = prevState.field_61e0 ?? 1;
+    // A transition (scheduled block change OR overlay expiry) always reverts the
+    // zone to its schedule. prevState.field_6200/field_61e0 already hold the
+    // scheduled values (getZoneState derives them via getZoneScheduleState and only
+    // folds in a live overlay, which the caller deletes before transitioning). Emit
+    // a clean schedule state: clear the overlay mode (0x6240=0), set the resume flag
+    // (0x6440=1) and omit the overlay setpoint (0x6260/0x6280) so the valve drops
+    // any held overlay instead of having the expired one re-asserted.
     const tlvPayload = {
         '0x6160': prevState.field_6160 ?? 1,
         '0x6180': prevState.field_6180 ?? 0,
         '0x6020': isHotWater ? 2 : (prevState.field_6020 ?? 1),
-        '0x61e0': prevState.field_61e0 ?? 1,
-        '0x6200': !(prevState.field_61e0 ?? 1) ? undefined : (prevState.field_6200 ?? (isHotWater ? 60 : 20)),
-        '0x6240': prevState.field_6240 ?? 0,
-        '0x62e0': prevState.field_62e0 ?? 0,
+        '0x61e0': finalEnabled,
+        '0x6200': finalEnabled ? (prevState.field_6200 ?? (isHotWater ? 60 : 20)) : undefined,
+        '0x6240': 0,
+        '0x62e0': 0,
+        '0x6440': 1
     };
-
-    const overlayMode = prevState.field_6240 ?? 0;
-    if (overlayMode > 0) {
-        const ovTemp = prevState.field_6280;
-        tlvPayload['0x6260'] = ovTemp != null ? 1 : 0;
-        if (ovTemp != null) {
-            tlvPayload['0x6280'] = ovTemp;
-        }
-    }
 
     Object.keys(tlvPayload).forEach(k => tlvPayload[k] === undefined && delete tlvPayload[k]);
     const sortedPayload = api.sortZoneStateFields(tlvPayload);
