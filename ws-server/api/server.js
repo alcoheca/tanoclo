@@ -703,6 +703,15 @@ if ((require.main === module || process.send || process.env.IS_CHILD_PROCESS ===
                     }
                     break;
                 }
+                case 'DEVICE_AWAKE': {
+                    // Master saw an uplink from a sleepy device; drain any downlinks
+                    // this (REST API child) process has queued for it.
+                    const commandApi = require('../lib/command-api');
+                    if (typeof commandApi.drainSleepyDownlink === 'function') {
+                        commandApi.drainSleepyDownlink(msg.deviceId);
+                    }
+                    break;
+                }
                 case 'ACK_RECEIVED': {
                     const commandApi = require('../lib/command-api');
                     if (commandApi.handleAckReceived) {

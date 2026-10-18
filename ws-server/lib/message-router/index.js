@@ -338,6 +338,16 @@ async function handleMessage(ws, message, isBinary, isDownlink = false) {
         if (commandApi && typeof commandApi.drainSleepyDownlink === 'function') {
             commandApi.drainSleepyDownlink(activeDeviceId);
         }
+        // The REST API runs in a child process with its own sleepy-downlink queue
+        // (e.g. UI diagnostic reads via /devices/:id/debug). It never sees this
+        // uplink, so its queue would otherwise never drain. Tell it the device is
+        // awake so it can flush its own queued downlinks.
+        if (commandApi && typeof commandApi.isSleepyDevice === 'function' && commandApi.isSleepyDevice(activeDeviceId)) {
+            const _apiChild = getApiProcess();
+            if (_apiChild && _apiChild.connected) {
+                _apiChild.send({ type: 'DEVICE_AWAKE', deviceId: activeDeviceId });
+            }
+        }
     }
 
     if (!isDownlink && session2048 && !wsToBridgeId.has(ws)) {
