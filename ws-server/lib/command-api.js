@@ -133,28 +133,11 @@ async function internalPushViabridge(deviceId, code, path, payload = Buffer.allo
         code, path, token: pushToken, mid, type, payload, extraOptions
     });
 
-    const isQueueable = !path.includes('pair') && (
-        path.includes('config') ||
-        path.endsWith('/lock') ||
-        path === 'd/lock' ||
-        path.startsWith('d/')
-    );
-
-    if (isSleepyDevice(deviceId) && !isDeviceAwake(deviceId) && isQueueable) {
-        queueSleepyDownlink(deviceId, {
-            bridgeId: bridge.bridgeId,
-            bridgeClient: bridge.bridgeClient,
-            targetIpv6: dbDev.ipv6_address,
-            targetPort: dbDev.udp_port || 5683,
-            coapBytes,
-            commandLabel: commandLabel || `push:${path}`,
-            path,
-            mid
-        });
-        return mid;
-    }
-
-    sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dbDev.ipv6_address, dbDev.udp_port || 5683, coapBytes, commandLabel || `push:${path}`);
+    // Unified dispatch: send immediately; the transport retries and, on no-ACK,
+    // queues for the device's next wake (except interactive debug reads, which
+    // fail fast). Replaces the old pre-send sleepy-device gate that parked
+    // commands before even trying to send.
+    sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dbDev.ipv6_address, dbDev.udp_port || 5683, coapBytes, commandLabel || `push:${path}`, deviceId);
     return mid;
 }
 

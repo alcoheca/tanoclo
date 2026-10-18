@@ -174,7 +174,7 @@ async function pushZoneOverlay(homeId, zoneId, setting, termination) {
                 extraOptions
             });
 
-            api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes);
+            api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes, 'z/s', dev.serial_no);
             sentCount++;
         }
     } else {
@@ -289,7 +289,7 @@ async function pushZoneOverlayDelete(homeId, zoneId) {
                 extraOptions
             });
 
-            api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes);
+            api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes, 'z/s', dev.serial_no);
             sentCount++;
         }
     }
@@ -394,7 +394,7 @@ async function pushScheduleTransition(homeId, zoneId) {
                 extraOptions
             });
 
-            api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes);
+            api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes, 'z/s', dev.serial_no);
             sentCount++;
         }
     }
@@ -710,7 +710,7 @@ async function pushHomeAway(homeId, isAway) {
                 extraOptions
             });
 
-            api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes);
+            api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes, 'z/s', dev.serial_no);
             totalSent++;
         }
     }
