@@ -27,6 +27,7 @@ const _deviceLastSeen = new Map(); // deviceId -> timestamp
 const _resendContext = new Map(); // mid -> { deviceId, bridge/target, coapBytes, commandLabel, path } for queue-on-failure
 const SLEEPY_AWAKE_WINDOW_MS = 4000;
 const QUEUE_TTL_MS = 2 * 60 * 60 * 1000;
+const MAX_WAKE_ATTEMPTS = 3; // drop a queued downlink after this many failed wake dispatches
 
 const RETRY_INTERVALS = [6000, 13000, 26000, 50000, 90000];
 const QUERY_TIMEOUT_MS = 5000;
@@ -89,7 +90,7 @@ function findBridgeForHome(homeId) {
     return null;
 }
 
-function sendViaBridge(bridgeId, bridgeClient, targetIpv6, targetPort, coapBytes, commandLabel, deviceId = null) {
+function sendViaBridge(bridgeId, bridgeClient, targetIpv6, targetPort, coapBytes, commandLabel, deviceId = null, wakeAttempts = 0) {
     const wsFrame = wsBridge.build({
         direction: 'server_to_client',
         ipv6: targetIpv6,
@@ -115,7 +116,7 @@ function sendViaBridge(bridgeId, bridgeClient, targetIpv6, targetPort, coapBytes
             _proxyMidCache.set(mid, { path: coapPath, ts: Date.now() });
         }
         if (deviceId) {
-            _resendContext.set(mid, { deviceId, bridgeId, bridgeClient, targetIpv6, targetPort, coapBytes, commandLabel, path: coapPath });
+            _resendContext.set(mid, { deviceId, bridgeId, bridgeClient, targetIpv6, targetPort, coapBytes, commandLabel, path: coapPath, wakeAttempts });
         }
         scheduleRetry(mid, bridgeId, wsFrame, 0);
 
@@ -157,7 +158,8 @@ function scheduleRetry(mid, bridgeId, wsFrame, attempt) {
             queueSleepyDownlink(ctx.deviceId, {
                 bridgeId: ctx.bridgeId, bridgeClient: ctx.bridgeClient,
                 targetIpv6: ctx.targetIpv6, targetPort: ctx.targetPort,
-                coapBytes: ctx.coapBytes, commandLabel: ctx.commandLabel, path: ctx.path, mid
+                coapBytes: ctx.coapBytes, commandLabel: ctx.commandLabel, path: ctx.path, mid,
+                wakeAttempts: ctx.wakeAttempts || 0
             });
             const trIdQ = _midToTrackingId.get(mid);
             if (trIdQ !== undefined) {
@@ -493,10 +495,15 @@ function drainSleepyDownlink(deviceId) {
                 _log('warn', `[cmd-api] Dropping expired queued downlink command for ${deviceId} /${pathKey}`);
                 continue;
             }
+            const attempts = item.wakeAttempts || 0;
+            if (attempts >= MAX_WAKE_ATTEMPTS) {
+                _log('warn', `[cmd-api] Dropping queued downlink to ${deviceId} /${pathKey} (MID=${item.mid}): unreachable after ${attempts} wake attempts`);
+                continue;
+            }
             setTimeout(() => {
-                _log('info', `[cmd-api] Dispatching queued downlink to ${deviceId}: /${pathKey} (MID=${item.mid})`);
+                _log('info', `[cmd-api] Dispatching queued downlink to ${deviceId}: /${pathKey} (MID=${item.mid}, wake attempt ${attempts + 1})`);
                 try {
-                    sendViaBridge(item.bridgeId, item.bridgeClient, item.targetIpv6, item.targetPort, item.coapBytes, item.commandLabel);
+                    sendViaBridge(item.bridgeId, item.bridgeClient, item.targetIpv6, item.targetPort, item.coapBytes, item.commandLabel, deviceId, attempts + 1);
                 } catch (err) {
                     _log('error', `[cmd-api] Error dispatching queued downlink to ${deviceId}: ${err.message}`);
                 }
