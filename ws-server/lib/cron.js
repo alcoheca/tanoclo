@@ -407,14 +407,14 @@ async function maintenanceZone(homeId, zoneId, zoneData, initialOverlay) {
 
             try {
                 if (db.isOffline()) throw new Error('Database is offline');
-                if (hasOverlay && _pushZoneOverlayDeleteFn) {
-                    // Overlay expired — use overlay delete (includes field_6440 0x6440)
-                    await _pushZoneOverlayDeleteFn(homeId, zoneId);
-                } else if (_pushScheduleTransitionFn) {
-                    // Schedule transition — use transition push (no 0x6440)
+                // All maintenance transitions — scheduled block change and overlay
+                // expiry alike — revert the zone to its schedule, so both go through
+                // pushScheduleTransition (which emits 0x6240=0 + 0x6440=1 to clear any
+                // overlay). pushZoneOverlayDelete remains for explicit user cancels.
+                if (_pushScheduleTransitionFn) {
                     await _pushScheduleTransitionFn(homeId, zoneId);
                 } else if (_pushZoneOverlayDeleteFn) {
-                    // Fallback if pushScheduleTransition not injected
+                    // Fallback only if pushScheduleTransition is not injected
                     await _pushZoneOverlayDeleteFn(homeId, zoneId);
                 }
             } catch (err) {

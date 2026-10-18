@@ -44,28 +44,37 @@ async function applyActiveOverlayToResult(homeId, zoneId, result, p) {
             'SELECT * FROM zone_overlays WHERE zone_id = ? AND home_id = ?',
             [zoneId, homeId]
         );
-        if (ovRows.length > 0) {
-            const ov = ovRows[0];
-            const isExpired = ov.termination_expiry && new Date(ov.termination_expiry).getTime() <= Date.now();
-            if (!isExpired) {
-                if (ov.setting_power === 'ON') {
-                    result['0x6240'] = overlayModeFor({ power: 'ON', terminationType: ov.termination_type });
-                    result['0x6260'] = 1;
-                    result['0x6280'] = ov.setting_temp_celsius != null ? parseFloat(ov.setting_temp_celsius) : (result['0x6200'] ?? 20);
-                    if (ov.termination_type === 'TIMER') {
-                        result['0x6440'] = 1;
-                    }
-                } else {
-                    result['0x6240'] = OVERLAY_MODE.OFF;
-                    result['0x6260'] = 0;
-                    result['0x6280'] = null;
+        const ov = ovRows.length > 0 ? ovRows[0] : null;
+        const isExpired = ov && ov.termination_expiry && new Date(ov.termination_expiry).getTime() <= Date.now();
+
+        if (ov && !isExpired) {
+            if (ov.setting_power === 'ON') {
+                result['0x6240'] = overlayModeFor({ power: 'ON', terminationType: ov.termination_type });
+                result['0x6260'] = 1;
+                result['0x6280'] = ov.setting_temp_celsius != null ? parseFloat(ov.setting_temp_celsius) : (result['0x6200'] ?? 20);
+                if (ov.termination_type === 'TIMER') {
+                    result['0x6440'] = 1;
                 }
-                result.field_6240 = result['0x6240'];
-                result.field_6260 = result['0x6260'];
-                result.field_6280 = result['0x6280'];
-                if (result['0x6440'] !== undefined) result.field_6440 = result['0x6440'];
+            } else {
+                result['0x6240'] = OVERLAY_MODE.OFF;
+                result['0x6260'] = 0;
+                result['0x6280'] = null;
             }
+        } else {
+            // No active overlay (no row, or an expired one): the zone_overlays
+            // table is the source of truth, so force the overlay fields clear.
+            // Otherwise getZoneState keeps the stale field_6240 it read from an old
+            // measurement row, and the valve re-asserts a long-dead overlay on its
+            // next z/s poll (the "cleared overlay comes back" bug).
+            result['0x6240'] = 0;
+            result['0x6260'] = 0;
+            result['0x6280'] = null;
         }
+
+        result.field_6240 = result['0x6240'];
+        result.field_6260 = result['0x6260'];
+        result.field_6280 = result['0x6280'];
+        if (result['0x6440'] !== undefined) result.field_6440 = result['0x6440'];
     } catch (err) {
         _log('warn', `Failed to apply overlay to zone state for Z:${zoneId}: ${err.message}`);
     }
