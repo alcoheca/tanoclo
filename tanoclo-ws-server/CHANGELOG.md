@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-10-19
+
+- fix(cmd-api): drain the REST API child's sleepy-downlink queue on device wake
+- fix: release/ota workflow
+
 ## [0.8.2] - 2026-10-16
 
 - feat: Improve Thermodynamic and hydraulic balancing
