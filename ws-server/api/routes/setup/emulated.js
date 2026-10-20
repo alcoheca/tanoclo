@@ -273,6 +273,10 @@ router.get('/devices', async (req, res) => {
                 }
             }
         }
+        const inst = require('../../../lib/zigbee-source').getInstance();
+        for (const dev of devices) {
+            dev.source_status = inst ? inst.getStatus(dev.serial_no) : null;
+        }
         res.json({ success: true, devices });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
@@ -498,6 +502,46 @@ router.post('/notify-removed', async (req, res) => {
 
         console.log(`[Emulated Webhook] Authenticated NVRAM removal confirmation for device ${serial}`);
         res.json({ success: true, message: 'Device records removed from database' });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Bind an emulated device to an MQTT source (e.g. a Zigbee2MQTT thermometer topic).
+// Send source_topic: null (or "") to unbind.
+router.put('/devices/:serialNo/source', async (req, res) => {
+    try {
+        const zigbeeSource = require('../../../lib/zigbee-source');
+        const serialNo = req.params.serialNo;
+        const body = req.body || {};
+        const emulated = await dbDevices.getAllEmulatedDevices();
+        if (!emulated.find(d => d.serial_no === serialNo)) {
+            return res.status(404).json({ success: false, error: 'Emulated device not found' });
+        }
+
+        const unbind = body.source_topic === null || body.source_topic === '';
+        let topic = null;
+        if (!unbind) {
+            topic = typeof body.source_topic === 'string' ? body.source_topic.trim() : body.source_topic;
+            const err = zigbeeSource.validateSourceTopic(topic);
+            if (err) return res.status(400).json({ success: false, error: err });
+        }
+        const keys = {};
+        for (const k of ['source_temp_key', 'source_humidity_key', 'source_battery_key']) {
+            const v = unbind ? null : body[k];
+            if (v !== undefined && v !== null && v !== '' && !/^[A-Za-z0-9_.-]{1,64}$/.test(v)) {
+                return res.status(400).json({ success: false, error: k + ' must be a JSON key name' });
+            }
+            keys[k] = v ? v : null;
+        }
+
+        await db.getPool().execute(
+            'UPDATE emulated_devices SET source_topic = ?, source_temp_key = ?, source_humidity_key = ?, source_battery_key = ? WHERE serial_no = ?',
+            [topic, keys.source_temp_key, keys.source_humidity_key, keys.source_battery_key, serialNo]
+        );
+        const inst = zigbeeSource.getInstance();
+        if (inst) await inst.refresh();
+        res.json({ success: true, source_topic: topic, ...keys });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
     }

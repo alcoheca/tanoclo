@@ -377,6 +377,16 @@ async function startServer() {
         mqttHaDiscovery.init(mqttClient, db, config, log);
         mqttCommands.init(mqttClient, db, commandApi, mqttPublisher, log, deps.onStateChange);
 
+        // Emulated sensors fed from an MQTT source (e.g. Zigbee2MQTT thermometers)
+        const zigbeeSource = require('./lib/zigbee-source').create({
+            mqttClient,
+            log,
+            getDevices: () => require('./lib/db-devices').getAllEmulatedDevices(),
+            applyTelemetry: mqttCommands.applyEmulatedTelemetry
+        });
+        require('./lib/zigbee-source').setInstance(zigbeeSource);
+        zigbeeSource.start().catch(e => log('warn', `[zigbee-source] start failed: ${e.message}`));
+
         // Initialize OWD Detector
         const owdDetector = require('./lib/owd-detector');
         owdDetector.init(db, commandApi, mqttPublisher, deps.onStateChange);
