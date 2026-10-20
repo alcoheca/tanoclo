@@ -555,7 +555,7 @@ async function handleRfKeyRefresh(req, res, deviceId) {
     try {
         const targetIpv6 = dbDev.ipv6_address || (bridge.bridgeClient && bridge.bridgeClient.ipv6) || '::';
         const targetPort = dbDev.udp_port || (bridge.bridgeClient && bridge.bridgeClient.udpPort) || 5683;
-        api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, targetIpv6, targetPort, coapBytes);
+        api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, targetIpv6, targetPort, coapBytes, 'd/rfkey', deviceId);
         api.jsonResponse(res, 200, { ok: true, message: `RF Key requested from ${deviceId}` });
     } catch (err) {
         api.jsonResponse(res, 500, { error: `Failed to send: ${err.message}` });

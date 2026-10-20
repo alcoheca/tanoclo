@@ -149,7 +149,7 @@ async function pushOfflineScheduleEnable(homeId, zoneId, enabled) {
             extraOptions
         });
 
-        api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes);
+        api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes, 'offline-sched', dev.serial_no);
         sentCount++;
     }
 
@@ -241,7 +241,7 @@ async function pushOfflineScheduleSync(homeId, zoneId) {
             extraOptions
         });
 
-        api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes);
+        api.sendViaBridge(bridge.bridgeId, bridge.bridgeClient, dev.ipv6_address, dev.udp_port || 5683, coapBytes, 'offline-sched', dev.serial_no);
         sentCount++;
     }
 

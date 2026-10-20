@@ -24,8 +24,10 @@ const _ackCallbacks = new Map();
 const _tanocloMids = new Map(); // mid -> timestamp
 const _sleepyDownlinkQueue = new Map(); // deviceId -> Map(pathKey -> queueItem)
 const _deviceLastSeen = new Map(); // deviceId -> timestamp
+const _resendContext = new Map(); // mid -> { deviceId, bridge/target, coapBytes, commandLabel, path } for queue-on-failure
 const SLEEPY_AWAKE_WINDOW_MS = 4000;
 const QUEUE_TTL_MS = 2 * 60 * 60 * 1000;
+const MAX_WAKE_ATTEMPTS = 3; // drop a queued downlink after this many failed wake dispatches
 
 const RETRY_INTERVALS = [6000, 13000, 26000, 50000, 90000];
 const QUERY_TIMEOUT_MS = 5000;
@@ -88,7 +90,7 @@ function findBridgeForHome(homeId) {
     return null;
 }
 
-function sendViaBridge(bridgeId, bridgeClient, targetIpv6, targetPort, coapBytes, commandLabel) {
+function sendViaBridge(bridgeId, bridgeClient, targetIpv6, targetPort, coapBytes, commandLabel, deviceId = null, wakeAttempts = 0) {
     const wsFrame = wsBridge.build({
         direction: 'server_to_client',
         ipv6: targetIpv6,
@@ -112,6 +114,9 @@ function sendViaBridge(bridgeId, bridgeClient, targetIpv6, targetPort, coapBytes
         _tanocloMids.set(mid, Date.now());
         if (coapPath && _proxyMidCache) {
             _proxyMidCache.set(mid, { path: coapPath, ts: Date.now() });
+        }
+        if (deviceId) {
+            _resendContext.set(mid, { deviceId, bridgeId, bridgeClient, targetIpv6, targetPort, coapBytes, commandLabel, path: coapPath, wakeAttempts });
         }
         scheduleRetry(mid, bridgeId, wsFrame, 0);
 
@@ -145,6 +150,24 @@ function scheduleRetry(mid, bridgeId, wsFrame, attempt) {
     if (existing && existing.timer) clearTimeout(existing.timer);
 
     if (attempt >= RETRY_INTERVALS.length) {
+        const ctx = _resendContext.get(mid);
+        _resendContext.delete(mid);
+        if (ctx && ctx.deviceId && isSleepyDevice(ctx.deviceId) && !isInteractiveDebugPath(ctx.path)) {
+            _log('info', `[cmd-api] MID ${mid}: no ACK after ${attempt} retries; queueing for ${ctx.deviceId} next wake`);
+            _pendingCommands.delete(mid);
+            queueSleepyDownlink(ctx.deviceId, {
+                bridgeId: ctx.bridgeId, bridgeClient: ctx.bridgeClient,
+                targetIpv6: ctx.targetIpv6, targetPort: ctx.targetPort,
+                coapBytes: ctx.coapBytes, commandLabel: ctx.commandLabel, path: ctx.path, mid,
+                wakeAttempts: ctx.wakeAttempts || 0
+            });
+            const trIdQ = _midToTrackingId.get(mid);
+            if (trIdQ !== undefined) {
+                const eq = _commandTracker.get(trIdQ);
+                if (eq && eq.status === 'pending') eq.status = 'queued';
+            }
+            return;
+        }
         _log('warn', `[cmd-api] MID ${mid}: Giving up after ${attempt} retries (no ACK received)`);
         _pendingCommands.delete(mid);
         metrics.inc('commands_failed');
@@ -200,6 +223,8 @@ function handleAckReceived(midInput, deviceIdOrMsg) {
         if (pending.timer) clearTimeout(pending.timer);
         _pendingCommands.delete(mid);
         _pendingCommands.delete(midInput);
+        _resendContext.delete(mid);
+        _resendContext.delete(midInput);
         metrics.inc('commands_acked');
 
         const trId = _midToTrackingId.get(mid) ?? _midToTrackingId.get(midInput);
@@ -396,6 +421,12 @@ function isSleepyDevice(deviceId) {
     return deviceId.toUpperCase().startsWith('VA');
 }
 
+// Interactive diagnostics (Advanced Settings reads/writes) fail fast rather than
+// queueing on no-ACK, so a human waiting on a result isn't parked until next wake.
+function isInteractiveDebugPath(path) {
+    return typeof path === 'string' && (path.startsWith('d/dbg/st') || path.startsWith('d/dbg2'));
+}
+
 function recordDeviceActivity(deviceId) {
     if (!deviceId) return;
     _deviceLastSeen.set(deviceId, Date.now());
@@ -447,10 +478,15 @@ function drainSleepyDownlink(deviceId) {
                 _log('warn', `[cmd-api] Dropping expired queued downlink command for ${deviceId} /${pathKey}`);
                 continue;
             }
+            const attempts = item.wakeAttempts || 0;
+            if (attempts >= MAX_WAKE_ATTEMPTS) {
+                _log('warn', `[cmd-api] Dropping queued downlink to ${deviceId} /${pathKey} (MID=${item.mid}): unreachable after ${attempts} wake attempts`);
+                continue;
+            }
             setTimeout(() => {
-                _log('info', `[cmd-api] Dispatching queued downlink to ${deviceId}: /${pathKey} (MID=${item.mid})`);
+                _log('info', `[cmd-api] Dispatching queued downlink to ${deviceId}: /${pathKey} (MID=${item.mid}, wake attempt ${attempts + 1})`);
                 try {
-                    sendViaBridge(item.bridgeId, item.bridgeClient, item.targetIpv6, item.targetPort, item.coapBytes, item.commandLabel);
+                    sendViaBridge(item.bridgeId, item.bridgeClient, item.targetIpv6, item.targetPort, item.coapBytes, item.commandLabel, deviceId, attempts + 1);
                 } catch (err) {
                     _log('error', `[cmd-api] Error dispatching queued downlink to ${deviceId}: ${err.message}`);
                 }
